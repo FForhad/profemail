@@ -142,7 +142,7 @@ CANDIDATE_PROFILE = {
         "Holds a B.Sc. in CSE from BAIUST (CGPA: 3.63/4.00, 3-time ICPC regionalist). "
         "Professional software engineering experience building scalable backend architectures (Django, PostgreSQL, Docker, Redis). "
         "Former CSE Lecturer at BAIUST (taught Data Structures, Algorithms, Discrete Math). "
-        "Applying for funded Fall 2026 PhD positions."
+        "Applying for funded Spring 2027 PhD positions."
     ),
     "interests": [
         "Machine Learning",

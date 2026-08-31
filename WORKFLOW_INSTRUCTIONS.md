@@ -25,8 +25,8 @@ Follow this document strictly from Step 1 through Step 7.
    - Read the candidate's profile and constraints from `PROFILE_INSTRUCTIONS.md`.
    - **Critical Rule**: Forhad Uddin Ahmed must be introduced as an **"AI/ML Researcher and Software Engineer"**.
    - **Forbidden**: NEVER state or imply that he is currently a Lecturer (his BAIUST teaching appointment concluded in May 2026).
-   - **Target Intake**: Funded Fall 2026 PhD positions.
-   - **Inquiry phrasing**: Always ask if positions are expected (*"Do you expect to have PhD opportunities for Fall 2026?"*), never assume they are open.
+   - **Target Intake**: Funded Spring 2027 PhD positions.
+   - **Inquiry phrasing**: Always ask if positions are expected (*"Do you expect to have PhD opportunities for Spring 2027?"*), never assume they are open.
 
 ---
 
@@ -84,14 +84,15 @@ Follow this document strictly from Step 1 through Step 7.
 3. Require the model to produce:
    - **LLM Research Summary**: 2–4 concise sentences analyzing the lab's recent direction, methodologies, and focus based on actual publications.
    - **LLM Fit Score (1–10)**: Realistic assessment of overlap with Forhad's background in ML, XAI, AI-driven Software Engineering, and full-stack software architecture.
-   - **Email Subject**: Formal academic subject (e.g., `Prospective PhD Applicant – Fall 2026 – Forhad Uddin Ahmed`).
+   - **Email Subject**: Formal academic subject (e.g., `Prospective PhD Applicant – Spring 2027 – Forhad Uddin Ahmed`).
    - **Email Draft**:
      - Maximum **150 words**.
-     - Addressed formally (`Dear Prof. Dr. <LastName>,`).
+     - Addressed formally using full name (`Dear Professor <FullName>,` or `Dear Prof. Dr. <FullName>,`).
      - Positioning: *"I am Forhad Uddin Ahmed, an AI/ML Researcher and Software Engineer..."*
      - Cite 1–2 real papers from the scraped data.
      - Connect Forhad's actual research (Explainable AI, Machine Learning, software systems) to the professor's recent focus.
-     - Respectful Fall 2026 PhD availability inquiry.
+     - Respectful Spring 2027 PhD availability inquiry.
+     - Mention that both **Resume and Academic Transcript** are attached for review (not just CV).
      - Professional sign-off.
 4. **Pre-Save Verification**:
    - Check word count $\le 150$ words.

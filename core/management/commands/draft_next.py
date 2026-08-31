@@ -14,10 +14,9 @@ logger = logging.getLogger(__name__)
 
 # Fallback candidate profile as defined in the specification
 DEFAULT_PROFILE = (
-    "I am a Computer Science Lecturer teaching Data Structures and Discrete Math. "
-    "My research expertise includes Machine Learning, Explainable AI (XAI), "
-    "Federated Learning, and AI-driven Software Engineering. "
-    "I am applying for Fall 2026 PhD positions."
+    "I am an AI/ML Researcher and Software Engineer with research expertise in "
+    "Machine Learning, Explainable AI (XAI), and AI-driven Software Engineering. "
+    "I am applying for Spring 2027 PhD positions."
 )
 
 
@@ -312,7 +311,7 @@ class Command(BaseCommand):
                 if col_subject_idx:
                     updates.append({
                         "range": gspread.utils.rowcol_to_a1(selected_row, col_subject_idx),
-                        "values": [["Prospective PhD Applicant – Fall 2026 – Forhad Uddin Ahmed"]],
+                        "values": [["Prospective PhD Applicant – Spring 2027 – Forhad Uddin Ahmed"]],
                     })
                 if col_fit_idx:
                     updates.append({
@@ -458,11 +457,12 @@ You are assisting Forhad Uddin Ahmed in drafting a PhD outreach email to a prosp
 1. Analyze the professor's most recent 2-3 papers from the scraped data or publications provided.
 2. Generate a short "LLM Research Summary" (2-4 sentences highlighting their current lab focus and methodologies).
 3. Generate an "Email Draft" (STRICTLY MAXIMUM 150 WORDS):
-   - Formally addressed to Professor {professor_name.split()[-1] if professor_name else 'Professor'}.
+   - Formally addressed using the professor's full name (e.g., "Dear Professor {professor_name}," or "Dear {professor_name}," if title/Dr./Prof. is already included in the name).
    - Introduce Forhad as an "AI/ML Researcher and Software Engineer" (DO NOT state that he is currently a Lecturer).
    - Explicitly name 1 or 2 of their actual recent papers. DO NOT HALLUCINATE OR INVENT PAPERS.
    - Genuine alignment: Connect Forhad's actual background (e.g. Machine Learning, Explainable AI, AI-driven Software Engineering) with the professor's work.
-   - Do NOT assume open positions exist; respectfully ask: "Do you expect to have PhD opportunities for Fall 2026?"
+   - Do NOT assume open positions exist; respectfully ask: "Do you expect to have PhD opportunities for Spring 2027?"
+   - Explicitly mention that both his **Resume and Academic Transcript** are attached for review (e.g. "I have attached my resume and academic transcript for your review."). Do NOT say only "CV attached".
    - Keep it concise, natural, academic, and non-generic.
    - Sign off professionally:
      Sincerely,
@@ -554,7 +554,11 @@ You MUST respond in this exact format:
         self, professor_name: str, selected_record: Dict[str, Any], scraped_data: str
     ) -> Tuple[str, str]:
         """High quality deterministic fallback conforming to the prompt specification."""
-        last_name = professor_name.split()[-1] if professor_name else "Professor"
+        full_name = professor_name.strip() if professor_name else "Professor"
+        if full_name.lower().startswith("prof") or full_name.lower().startswith("dr"):
+            salutation = f"Dear {full_name},"
+        else:
+            salutation = f"Dear Professor {full_name},"
         univ = selected_record.get("University", "your university")
 
         # Try to find a paper title from scraped data
@@ -570,16 +574,16 @@ You MUST respond in this exact format:
         )
 
         email_draft = (
-            f"Dear Professor {last_name},\n\n"
+            f"{salutation}\n\n"
             f"I hope this email finds you well. I am Forhad Uddin Ahmed, an AI/ML Researcher and Software Engineer "
-            f"with peer-reviewed research experience in machine learning and explainable AI. I am applying for Fall 2026 "
+            f"with peer-reviewed research experience in machine learning and explainable AI. I am applying for Spring 2027 "
             f"funded PhD positions and have been following your lab's work at {univ}, particularly your recent paper "
             f"'{featured_paper}'.\n\n"
             f"My research background centers on Machine Learning, Explainable AI (XAI), and AI-driven Software Engineering. "
             f"Given your research direction, I believe my background in trustworthy AI models and scalable systems "
             f"would allow me to contribute effectively to your lab's projects.\n\n"
-            f"Do you expect to have PhD opportunities for Fall 2026? I would welcome the opportunity to discuss "
-            f"potential alignment if your schedule permits. My CV is attached for your reference.\n\n"
+            f"Do you expect to have PhD opportunities for Spring 2027? I would welcome the opportunity to discuss "
+            f"potential alignment if your schedule permits. I have attached my resume and academic transcript for your review.\n\n"
             f"Thank you for your time and consideration.\n\n"
             f"Sincerely,\n"
             f"Forhad Uddin Ahmed"

@@ -212,11 +212,13 @@ Do not send generic mass-email language.
 
 The email should normally contain:
 
-1. Brief introduction
-2. Specific research connection
-3. Relevant background
-4. Clear PhD inquiry
-5. Short closing
+1. Formal salutation using the professor's full name (e.g., "Dear Professor <Full Name>," or "Dear Prof. Dr. <Full Name>,")
+2. Brief introduction
+3. Specific research connection
+4. Relevant background
+5. Clear PhD inquiry
+6. Mention of attached materials (explicitly state that both **Resume and Academic Transcript** are attached for review, e.g., "I have attached my resume and academic transcript for your review." Do NOT say only "CV attached")
+7. Short closing
 
 
 ==================================================
@@ -301,11 +303,11 @@ Typical target areas:
 
 Current date context should always be checked before writing application emails.
 
-For Fall 2026 applications, do not automatically assume that positions are still open.
+For Spring 2027 applications, do not automatically assume that positions are still open.
 
 If availability is uncertain, ask:
 
-"Do you expect to have PhD opportunities for Fall 2026?"
+"Do you expect to have PhD opportunities for Spring 2027?"
 
 Do not write:
 
@@ -348,6 +350,7 @@ Before producing an email, verify:
 [ ] Is the PhD intake/date appropriate?
 [ ] Is funding/position availability verified or phrased as a question?
 [ ] Is the research connection genuine?
+[ ] Are both Resume and Academic Transcript mentioned as attachments (not just CV)?
 [ ] Is the email concise?
 [ ] Does it sound like a real applicant rather than a generic AI-generated email?
 
