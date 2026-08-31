@@ -214,7 +214,7 @@ The email should normally contain:
 
 1. Formal salutation using the professor's full name (e.g., "Dear Professor <Full Name>," or "Dear Prof. Dr. <Full Name>,")
 2. Brief introduction
-3. Specific research connection
+3. Specific research connection referencing recent papers (**STRICTLY prioritize publications from 2025 and 2026**; never reference old papers from a decade ago when recent work exists)
 4. Relevant background
 5. Clear PhD inquiry
 6. Mention of attached materials (explicitly state that both **Resume and Academic Transcript** are attached for review, e.g., "I have attached my resume and academic transcript for your review." Do NOT say only "CV attached")
@@ -222,8 +222,10 @@ The email should normally contain:
 
 
 ==================================================
-9. CRITICAL ACCURACY RULES
+9. CRITICAL ACCURACY & RECENCY RULES
 ==================================================
+
+• PAPER RECENCY MANDATE: Always cite and reference the professor's most recent work published in **2025 or 2026** (or latest 2024 if 2025/2026 is absent). Do not select old seminal papers from years or decades ago.
 
 NEVER invent information.
 
@@ -275,6 +277,9 @@ Preferred introduction:
 Alternative:
 
 "I am Forhad Uddin Ahmed, an AI/ML Researcher and Software Engineer with peer-reviewed research experience and a background in developing software systems."
+
+IMPORTANT OPENING RULE:
+Do NOT write "I am applying for Spring 2027 funded PhD positions" in the email opening. Keep the introduction focused on your research positioning and connect to the professor's paper; ask about PhD opportunities only at the closing inquiry stage.
 
 
 ==================================================
