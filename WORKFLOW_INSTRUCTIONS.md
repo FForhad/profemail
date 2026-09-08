@@ -177,9 +177,11 @@ Follow this document strictly from Step 1 through Step 7.
 
  \- The research connection should be at the research/problem level, not merely because both use the same programming language, framework, or general technology.
 
- \- Respectful Spring 2027 PhD availability inquiry.
+ - Respectful Spring 2027 PhD availability inquiry.
+   - For professors in Japan: Inquire about **Spring/Fall 2027** availability ("Do you expect to have PhD opportunities for Spring/Fall 2027?" or "for the Spring or Fall 2027 intake?"). Email Subject: `Prospective PhD Applicant – Spring/Fall 2027 – Forhad Uddin Ahmed`.
+   - For all other countries: Inquire about **Spring 2027** availability.
 
- \- Ask whether the professor **expects to have funded PhD opportunities for Spring 2027**. Never assume that a position is currently available.
+ - Ask whether the professor **expects to have funded PhD opportunities for Spring 2027** (or **Spring/Fall 2027** for Japan). Never assume that a position is currently available.
 
  \- Mention that both **\*\*Resume and Academic Transcript\*\*** are attached for review (not just CV).
 

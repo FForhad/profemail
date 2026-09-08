@@ -184,10 +184,10 @@ python manage.py draft_next --limit 5
 python manage.py draft_next --country USA --limit 3
 ```
 
-### 4. Limit by Maximum Sheet Row Number
+### 4. Limit by Sheet Row Range (Start and Max Row)
 ```bash
-# Only process candidate rows up to row 50
-python manage.py draft_next --max-row 50 --limit 5
+# Process candidate rows starting from row 178 up to 200
+python manage.py draft_next --country Japan --start-row 178 --limit 2
 ```
 
 ### 5. Command-Line Options Reference
@@ -195,11 +195,15 @@ python manage.py draft_next --max-row 50 --limit 5
 | Option | Description | Default |
 | :--- | :--- | :--- |
 | `--limit N` | Number of eligible professors to process in sequence | `1` |
+| `--start-row <INT>` / `--min-row <INT>` | Minimum sheet row number to start processing from | None |
+| `--max-row <INT>` | Maximum sheet row number to process up to | None |
+| `--country <COUNTRY>` | Filter professors by country (e.g., `USA`, `Canada`, `Japan`) | None |
+| `--intake <STRING>` | Target intake semester (e.g. `Spring/Fall 2027`, `Spring 2027`) | `Spring 2027` (or `Spring/Fall 2027` for Japan) |
 | `--sheet <URL_OR_ID>` | Override Google Sheet URL or ID from `.env` | Env value |
 | `--worksheet <NAME>` | Worksheet/tab name or 0-indexed tab number | Env value / 1st tab |
 | `--credentials <PATH>`| Custom path to service account JSON key | `credentials.json` |
-| `--country <COUNTRY>` | Filter professors by country (e.g., `USA`, `Canada`) | None |
-| `--max-row <INT>` | Maximum row number in sheet to evaluate | None |
+| `--ignore-preceding-locks` | Ignore locks from rows prior to `--start-row` | True when `--start-row` set |
+| `--enforce-all-locks` | Enforce group locks across all rows even with `--start-row` | False |
 
 ---
 

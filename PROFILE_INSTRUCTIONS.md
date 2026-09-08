@@ -314,6 +314,11 @@ If availability is uncertain, ask:
 
 "Do you expect to have PhD opportunities for Spring 2027?"
 
+JAPAN-SPECIFIC INTAKE RULE:
+In Japan, graduate schools routinely admit students for both Spring (April) and Fall (September/October) semesters. For outreach to professors in Japan, inquire about Spring/Fall 2027:
+"Do you expect to have PhD opportunities for Spring/Fall 2027?" (or "for the Spring or Fall 2027 intake?").
+Do not restrict the inquiry to only Spring 2027 for Japanese institutions.
+
 Do not write:
 
 "I understand that you have an open PhD position"

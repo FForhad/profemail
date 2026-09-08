@@ -53,6 +53,14 @@ class Command(BaseCommand):
             help="Number of professors to process and draft for (default: 1).",
         )
         parser.add_argument(
+            "--start-row",
+            "--min-row",
+            type=int,
+            dest="start_row",
+            default=None,
+            help="Starting / minimum sheet row number to process from (e.g. 178).",
+        )
+        parser.add_argument(
             "--max-row",
             type=int,
             default=None,
@@ -63,6 +71,24 @@ class Command(BaseCommand):
             type=str,
             default=None,
             help="Filter candidate professors by country (e.g. USA, Germany, Japan).",
+        )
+        parser.add_argument(
+            "--intake",
+            type=str,
+            default=None,
+            help="Target intake semester (e.g. 'Spring/Fall 2027', 'Spring 2027', 'Fall 2026').",
+        )
+        parser.add_argument(
+            "--ignore-preceding-locks",
+            action="store_true",
+            default=False,
+            help="Explicitly ignore group locks established by rows prior to --start-row.",
+        )
+        parser.add_argument(
+            "--enforce-all-locks",
+            action="store_true",
+            default=False,
+            help="Enforce group locks across all rows in the sheet even when --start-row is specified.",
         )
 
     def handle(self, *args, **options):
@@ -179,9 +205,24 @@ class Command(BaseCommand):
 
         locked_statuses = {"researching", "needs review", "approved", "applied"}
 
+        start_row = options.get("start_row")
+        max_row = options.get("max_row")
+        country_filter = options.get("country")
+        if country_filter:
+            country_filter = country_filter.strip().lower()
+
+        # If start_row is specified, by default ignore locks established by rows preceding start_row,
+        # unless --enforce-all-locks is explicitly set.
+        ignore_preceding_locks = options.get("ignore_preceding_locks") or (
+            start_row is not None and not options.get("enforce_all_locks")
+        )
+
         # Identify locked groups
         locked_groups = set()
-        for rec in records:
+        for idx, rec in enumerate(records):
+            sheet_row = idx + 2
+            if ignore_preceding_locks and start_row and sheet_row < start_row:
+                continue
             raw_group = str(rec.get(group_col, "")).strip()
             raw_status = str(rec.get(status_col, "")).strip().lower().replace("_", " ")
             if raw_group and raw_status in locked_statuses:
@@ -191,15 +232,12 @@ class Command(BaseCommand):
 
         # Filter eligible professors:
         # Pipeline Status must be "Pending" AND Contact Group must NOT be locked.
-        max_row = options.get("max_row")
-        country_filter = options.get("country")
-        if country_filter:
-            country_filter = country_filter.strip().lower()
-
         eligible_candidates = []
         for idx, rec in enumerate(records):
             # In gspread, row 1 is headers, row 2 is records[0] -> sheet_row = idx + 2
             sheet_row = idx + 2
+            if start_row and sheet_row < start_row:
+                continue
             if max_row and sheet_row > max_row:
                 continue
 
@@ -238,6 +276,9 @@ class Command(BaseCommand):
                     "name": rec.get(name_col, f"Row {sheet_row}") if name_col else f"Row {sheet_row}",
                     "group": raw_group,
                 })
+
+        # Sort candidates strictly by Priority (1 highest), then by sheet row index (lowest first)
+        eligible_candidates.sort(key=lambda c: (c["priority"], c["row_index"]))
 
         if not eligible_candidates:
             self.stdout.write("No eligible professors found")
@@ -303,6 +344,12 @@ class Command(BaseCommand):
             scraped_data = self._scrape_scholar(scholar_url)
             self.stdout.write(f"Scraped summary length: {len(scraped_data)} chars.")
 
+            rec_country = str(selected_record.get(country_col or "Country", "")).strip().lower()
+            is_japan = rec_country == "japan" or bool(country_filter and "japan" in country_filter.lower())
+            opt_intake = options.get("intake")
+            target_intake = opt_intake or ("Spring/Fall 2027" if is_japan else "Spring 2027")
+            email_subject = f"Prospective PhD Applicant – {target_intake} – Forhad Uddin Ahmed"
+
             # -------------------------------------------------------------
             # 4. LLM Integration (Drafting the Email)
             # -------------------------------------------------------------
@@ -311,6 +358,7 @@ class Command(BaseCommand):
                 professor_name=selected_name,
                 selected_record=selected_record,
                 scraped_data=scraped_data,
+                target_intake=target_intake,
             )
 
             self.stdout.write(self.style.SUCCESS("--- Generated LLM Research Summary ---"))
@@ -343,7 +391,7 @@ class Command(BaseCommand):
                 if col_subject_idx:
                     updates.append({
                         "range": gspread.utils.rowcol_to_a1(selected_row, col_subject_idx),
-                        "values": [["Prospective PhD Applicant – Spring 2027 – Forhad Uddin Ahmed"]],
+                        "values": [[email_subject]],
                     })
                 if col_fit_idx:
                     updates.append({
@@ -454,7 +502,7 @@ class Command(BaseCommand):
             return f"Scraping failed: {e}"
 
     def _generate_llm_content(
-        self, professor_name: str, selected_record: Dict[str, Any], scraped_data: str
+        self, professor_name: str, selected_record: Dict[str, Any], scraped_data: str, target_intake: str = "Spring 2027"
     ) -> Tuple[str, str, int]:
         """
         Uses google-generativeai / google.genai / OpenAI to generate:
@@ -475,11 +523,20 @@ class Command(BaseCommand):
             with open(profile_instructions_path, "r", encoding="utf-8") as f:
                 profile_instructions_text = f.read()
 
+        if "spring/fall" in target_intake.lower() or "spring or fall" in target_intake.lower():
+            phd_inquiry_rule = (
+                f'Respectfully ask about {target_intake} PhD availability near the end ("Do you expect to have PhD opportunities for {target_intake}?" or "for the Spring or Fall 2027 intake?"). Explicitly ask about {target_intake}, never only Spring or only Fall. Never assume open positions exist.'
+            )
+        else:
+            phd_inquiry_rule = (
+                f'Respectfully ask about {target_intake} PhD availability near the end ("Do you expect to have PhD opportunities for {target_intake}?"). Never assume open positions exist.'
+            )
+
         prompt = f"""
 You are assisting Forhad Uddin Ahmed in drafting a highly personalized PhD outreach email to a prospective advisor.
 
 ### STRICT PROFILE CONTEXT & WRITING GUIDELINES:
-{profile_instructions_text or profile_context}
+{profile_instructions_text or DEFAULT_PROFILE}
 
 ### TARGET PROFESSOR:
 - Name: {professor_name}
@@ -508,9 +565,9 @@ You are assisting Forhad Uddin Ahmed in drafting a highly personalized PhD outre
 
 3. **Generate Email Draft (STRICTLY MAXIMUM 150 WORDS)**:
    - **Salutation**: Formally address the professor using their full name (e.g., "Dear Professor {professor_name}," or "Dear {professor_name}," if title/Dr./Prof. is already included in the name).
-   - **Positioning**: Introduce Forhad as an "AI/ML Researcher and Software Engineer" (DO NOT state that he is currently a Lecturer). Do NOT write "I am applying for Spring 2027 funded PhD positions" in the introduction; keep the intro focused on background and paper connection, and ask about PhD opportunities only at the inquiry stage.
+   - **Positioning**: Introduce Forhad as an "AI/ML Researcher and Software Engineer" (DO NOT state that he is currently a Lecturer). Do NOT write "I am applying for {target_intake} funded PhD positions" in the introduction; keep the intro focused on background and paper connection, and ask about PhD opportunities only at the inquiry stage.
    - **Paper Reference & Connection**: Select 1–2 real and RECENT papers (MUST prioritize 2025 and 2026 papers from the scraped data; do NOT select old papers). Explain *why* the selected recent work is relevant rather than merely listing titles. Connect Forhad's actual research experience (Explainable AI, Machine Learning, predictive modeling, software systems) to the professor's specific recent research direction. Never invent titles or unsupported claims.
-   - **PhD Inquiry**: Respectfully ask about Spring 2027 PhD availability near the end ("Do you expect to have PhD opportunities for Spring 2027?"). Never assume open positions exist.
+   - **PhD Inquiry**: {phd_inquiry_rule}
    - **Attachments**: Explicitly mention that both his **Resume and Academic Transcript** are attached for review (e.g. "I have attached my resume and academic transcript for your review."). Do NOT say only "CV attached".
    - **Tone**: Concise, research-oriented, technically informed, respectful, confident, natural, avoiding corporate buzzwords, excessive flattery, or generic statements.
    - **Sign-off**:
@@ -535,17 +592,27 @@ You MUST respond in this exact format:
 
         # 1. Try google.genai (official new SDK)
         if api_key:
-            try:
-                from google import genai
-                client = genai.Client(api_key=api_key)
-                response = client.models.generate_content(
-                    model=model_name or "gemini-3.6-flash",
-                    contents=prompt,
-                )
-                if response and response.text:
-                    return self._parse_llm_response(response.text)
-            except Exception as e:
-                logger.warning(f"google.genai call failed: {e}")
+            candidate_models = [
+                model_name or "gemini-3.6-flash",
+                "gemini-3.8-flash",
+                "gemini-3.7-flash",
+                "gemini-3.5-flash",
+            ]
+            for m_name in candidate_models:
+                try:
+                    from google import genai
+                    client = genai.Client(api_key=api_key)
+                    response = client.models.generate_content(
+                        model=m_name,
+                        contents=prompt,
+                    )
+                    if response and response.text:
+                        return self._parse_llm_response(response.text)
+                except Exception as e:
+                    logger.warning(f"google.genai call failed for model {m_name}: {e}")
+                    if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e) or "503" in str(e):
+                        continue
+                    break
 
             # 2. Try legacy google.generativeai if available
             try:
@@ -576,7 +643,7 @@ You MUST respond in this exact format:
 
         # Deterministic fallback if API keys not provided or network failure
         self.stdout.write(self.style.WARNING("Using deterministic template generation (no LLM key or call failed)."))
-        return self._generate_deterministic_content(professor_name, selected_record, scraped_data)
+        return self._generate_deterministic_content(professor_name, selected_record, scraped_data, target_intake=target_intake)
 
     def _parse_llm_response(self, text: str) -> Tuple[str, str, int]:
         """Extracts summary, email draft, and fit score from LLM tags."""
@@ -614,7 +681,7 @@ You MUST respond in this exact format:
         return summary, email_draft, fit_score
 
     def _generate_deterministic_content(
-        self, professor_name: str, selected_record: Dict[str, Any], scraped_data: str
+        self, professor_name: str, selected_record: Dict[str, Any], scraped_data: str, target_intake: str = "Spring 2027"
     ) -> Tuple[str, str, int]:
         """High quality deterministic fallback conforming to the prompt specification."""
         full_name = professor_name.strip() if professor_name else "Professor"
@@ -706,7 +773,7 @@ You MUST respond in this exact format:
             f"with peer-reviewed research experience in machine learning and explainable AI. I have been following "
             f"your lab's work at {univ}, particularly your recent paper '{featured_paper}'.\n\n"
             f"{research_bridge}\n\n"
-            f"Do you expect to have PhD opportunities for Spring 2027? I would welcome the opportunity to discuss "
+            f"Do you expect to have PhD opportunities for {target_intake}? I would welcome the opportunity to discuss "
             f"potential alignment if your schedule permits. I have attached my resume and academic transcript for your review.\n\n"
             f"Thank you for your time and consideration.\n\n"
             f"Sincerely,\n"
