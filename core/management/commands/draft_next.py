@@ -1,6 +1,7 @@
 import os
 import re
 import sys
+import time
 import logging
 from typing import Dict, Any, List, Optional, Tuple
 
@@ -341,7 +342,7 @@ class Command(BaseCommand):
                         scholar_url = val
 
             self.stdout.write(f"Target URL for scraping: {scholar_url or 'None provided'}")
-            scraped_data = self._scrape_scholar(scholar_url)
+            scraped_data = self._scrape_scholar(scholar_url, professor_name=selected_name)
             self.stdout.write(f"Scraped summary length: {len(scraped_data)} chars.")
 
             rec_country = str(selected_record.get(country_col or "Country", "")).strip().lower()
@@ -361,10 +362,16 @@ class Command(BaseCommand):
                 target_intake=target_intake,
             )
 
+            word_count = len(email_draft.split())
+            if word_count > 150:
+                self.stdout.write(self.style.WARNING(f"Draft has {word_count} words (>150). Auto-shortening..."))
+                email_draft = self._shorten_email_draft(email_draft, max_words=145)
+                word_count = len(email_draft.split())
+
             self.stdout.write(self.style.SUCCESS("--- Generated LLM Research Summary ---"))
             self.stdout.write(summary)
             self.stdout.write(self.style.SUCCESS(f"--- Generated Fit Score: {fit_score}/10 ---"))
-            self.stdout.write(self.style.SUCCESS("--- Generated Email Draft ---"))
+            self.stdout.write(self.style.SUCCESS(f"--- Generated Email Draft (Word Count: {word_count}) ---"))
             self.stdout.write(email_draft)
 
             # -------------------------------------------------------------
@@ -411,6 +418,7 @@ class Command(BaseCommand):
                     if selected_group:
                         locked_groups.add(selected_group)
                     processed_count += 1
+                    time.sleep(1.5)
                 else:
                     self.stderr.write(self.style.ERROR("No valid columns found to update in Google Sheet."))
             except Exception as exc:
@@ -420,86 +428,179 @@ class Command(BaseCommand):
             self.style.SUCCESS(f"\nFinished processing {processed_count} professor(s) successfully.")
         )
 
-    def _scrape_scholar(self, url: str) -> str:
+    def _fetch_semantic_scholar(self, name: str) -> str:
+        """Fallback to Semantic Scholar graph API to fetch verified recent publications."""
+        if not name:
+            return ""
+        clean_name = re.sub(
+            r"^(prof\.|dr\.|assoc\.\s*prof\.|asst\.\s*prof\.|assistant\s*professor|associate\s*professor|professor)\s*",
+            "",
+            name,
+            flags=re.IGNORECASE,
+        ).strip()
+        queries = [clean_name]
+        no_initial = re.sub(r"^[A-Z]\.\s*", "", clean_name).strip()
+        if no_initial != clean_name:
+            queries.append(no_initial)
+
+        for q in queries:
+            try:
+                r = requests.get(
+                    f"https://api.semanticscholar.org/graph/v1/author/search?query={q}&fields=name,papers.title,papers.year",
+                    headers={"User-Agent": "Mozilla/5.0"},
+                    timeout=10,
+                )
+                if r.status_code == 200:
+                    data = r.json()
+                    authors = data.get("data", [])
+                    if authors:
+                        author = authors[0]
+                        papers = sorted(
+                            author.get("papers", []),
+                            key=lambda x: x.get("year") or 0,
+                            reverse=True,
+                        )
+                        if papers:
+                            lines = [
+                                f"Scholar Name (Semantic Scholar): {author.get('name')}",
+                                "Recent Publications (sorted newest first):",
+                            ]
+                            for p in papers[:12]:
+                                title = p.get("title")
+                                year = p.get("year")
+                                if title:
+                                    line = f'- Title: "{title}"'
+                                    if year:
+                                        line += f" | Year: {year}"
+                                    lines.append(line)
+                            return "\n".join(lines)
+            except Exception as e:
+                logger.warning(f"Semantic Scholar fallback error for '{q}': {e}")
+        return ""
+
+    def _scrape_scholar(self, url: str, professor_name: str = "") -> str:
         """
         Scrapes the Google Scholar profile page with realistic headers
         to extract recent publication titles and publication years.
+        Falls back to Semantic Scholar API if Google Scholar fails or is blocked.
         """
-        if not url or not url.strip():
-            return "No Google Scholar URL provided."
+        extracted = []
+        if url and url.strip():
+            url = url.strip()
+            if not url.startswith("http"):
+                url = f"https://{url}"
 
-        url = url.strip()
-        if not url.startswith("http"):
-            url = f"https://{url}"
+            # Ensure Google Scholar sorts by publication date (newest first: 2026, 2025...)
+            if "scholar.google" in url and "sortby=pubdate" not in url:
+                separator = "&" if "?" in url else "?"
+                url = f"{url}{separator}sortby=pubdate"
 
-        # Ensure Google Scholar sorts by publication date (newest first: 2026, 2025...)
-        if "scholar.google" in url and "sortby=pubdate" not in url:
-            separator = "&" if "?" in url else "?"
-            url = f"{url}{separator}sortby=pubdate"
+            headers = {
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/124.0.0.0 Safari/537.36"
+                ),
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            }
 
-        headers = {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/124.0.0.0 Safari/537.36"
-            ),
-            "Accept-Language": "en-US,en;q=0.9",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        }
+            try:
+                response = requests.get(url, headers=headers, timeout=12)
+                if response.status_code == 200:
+                    soup = BeautifulSoup(response.content, "html.parser")
+                    for tag in soup(["script", "style", "nav", "footer", "header", "noscript", "svg"]):
+                        tag.decompose()
 
-        try:
-            response = requests.get(url, headers=headers, timeout=12)
-            if response.status_code != 200:
-                return f"HTTP error {response.status_code} while accessing {url}"
+                    name_elem = soup.select_one("#gsc_prf_in")
+                    if name_elem:
+                        extracted.append(f"Scholar Name: {name_elem.get_text(strip=True)}")
 
-            soup = BeautifulSoup(response.content, "html.parser")
+                    interests = [a.get_text(strip=True) for a in soup.select("#gsc_prf_int a")]
+                    if interests:
+                        extracted.append(f"Research Interests: {', '.join(interests)}")
 
-            # Remove scripts, styles, etc.
-            for tag in soup(["script", "style", "nav", "footer", "header", "noscript", "svg"]):
-                tag.decompose()
+                    pub_rows = soup.select("tr.gsc_a_tr")
+                    if pub_rows:
+                        extracted.append("Recent Publications (sorted newest first):")
+                        for r in pub_rows[:12]:
+                            title_elem = r.select_one("a.gsc_a_at")
+                            authors_elem = r.select_one(".gs_gray")
+                            year_elem = r.select_one(".gsc_a_y")
 
-            extracted = []
+                            title = title_elem.get_text(strip=True) if title_elem else ""
+                            authors = authors_elem.get_text(strip=True) if authors_elem else ""
+                            year = year_elem.get_text(strip=True) if year_elem else ""
 
-            # Extract scholar user name if present
-            name_elem = soup.select_one("#gsc_prf_in")
-            if name_elem:
-                extracted.append(f"Scholar Name: {name_elem.get_text(strip=True)}")
+                            if title:
+                                line = f'- Title: "{title}"'
+                                if year:
+                                    line += f" | Year: {year}"
+                                if authors:
+                                    line += f" | Authors: {authors}"
+                                extracted.append(line)
+                    else:
+                        text = " ".join(soup.stripped_strings)
+                        text = re.sub(r"\s+", " ", text).strip()
+                        if "Sign in to continue" not in text and len(text) > 100:
+                            extracted.append(text[:2500])
+            except Exception as e:
+                logger.warning(f"Error scraping {url}: {e}")
 
-            # Extract research interests
-            interests = [a.get_text(strip=True) for a in soup.select("#gsc_prf_int a")]
-            if interests:
-                extracted.append(f"Research Interests: {', '.join(interests)}")
+        # If no publications were extracted from Google Scholar, fall back to Semantic Scholar API
+        has_pubs = any("Recent Publications" in x for x in extracted)
+        if not has_pubs and professor_name:
+            s2_res = self._fetch_semantic_scholar(professor_name)
+            if s2_res:
+                extracted.append(s2_res)
 
-            # Extract Google Scholar publication rows (class 'gsc_a_tr')
-            pub_rows = soup.select("tr.gsc_a_tr")
-            if pub_rows:
-                extracted.append("Recent Publications (sorted newest first):")
-                for r in pub_rows[:12]:
-                    title_elem = r.select_one("a.gsc_a_at")
-                    authors_elem = r.select_one(".gs_gray")
-                    year_elem = r.select_one(".gsc_a_y")
+        return "\n".join(extracted) if extracted else "No publication data available."
 
-                    title = title_elem.get_text(strip=True) if title_elem else ""
-                    authors = authors_elem.get_text(strip=True) if authors_elem else ""
-                    year = year_elem.get_text(strip=True) if year_elem else ""
-
-                    if title:
-                        line = f"- Title: \"{title}\""
-                        if year:
-                            line += f" | Year: {year}"
-                        if authors:
-                            line += f" | Authors: {authors}"
-                        extracted.append(line)
-            else:
-                # If standard scholar table not found, extract general text blocks
-                text = " ".join(soup.stripped_strings)
-                text = re.sub(r"\s+", " ", text).strip()
-                extracted.append(text[:2500])
-
-            return "\n".join(extracted)
-        except Exception as e:
-            logger.warning(f"Error scraping {url}: {e}")
-            return f"Scraping failed: {e}"
+    def _shorten_email_draft(self, draft: str, max_words: int = 145) -> str:
+        """Auto-shortens email draft via LLM to guarantee word count <= 150 words."""
+        api_key = os.getenv("GEMINI_API_KEY") or getattr(settings, "GEMINI_API_KEY", "")
+        model_name = os.getenv("GEMINI_MODEL") or getattr(settings, "GEMINI_MODEL", "gemini-3.8-flash")
+        if api_key:
+            try:
+                from google import genai
+                client = genai.Client(api_key=api_key)
+                prompt = (
+                    f"Shorten this PhD outreach email draft so that its total word count is strictly under {max_words} words.\n"
+                    f"CRITICAL REQUIREMENTS:\n"
+                    f"- Retain formal salutation using the professor's full name.\n"
+                    f"- Retain applicant positioning as 'AI/ML Researcher and Software Engineer'.\n"
+                    f"- Retain cited recent publications and genuine technical bridge.\n"
+                    f"- Retain polite Spring 2027 PhD availability inquiry.\n"
+                    f"- Retain explicit mention that both resume and academic transcript are attached.\n"
+                    f"- Retain formal sign-off: Sincerely,\\nForhad Uddin Ahmed.\n"
+                    f"Do NOT output markdown formatting tags, explanation, or commentary. Output ONLY the shortened email text.\n\n"
+                    f"{draft}"
+                )
+                shorten_models = [
+                    model_name or "gemini-3.6-flash",
+                    "gemini-3.6-flash",
+                    "gemini-3.5-flash-lite",
+                    "gemini-3.1-flash-lite",
+                ]
+                for sm in shorten_models:
+                    try:
+                        resp = client.models.generate_content(
+                            model=sm,
+                            contents=prompt,
+                        )
+                        if resp and resp.text:
+                            shortened = resp.text.strip()
+                            shortened = re.sub(r"^```(?:markdown|text)?\n?", "", shortened).strip()
+                            shortened = re.sub(r"\n?```$", "", shortened).strip()
+                            if len(shortened.split()) <= 150:
+                                return shortened
+                    except Exception as err:
+                        if "429" in str(err) or "RESOURCE_EXHAUSTED" in str(err) or "503" in str(err):
+                            continue
+                        break
+            except Exception as e:
+                logger.warning(f"Error auto-shortening email draft: {e}")
+        return draft
 
     def _generate_llm_content(
         self, professor_name: str, selected_record: Dict[str, Any], scraped_data: str, target_intake: str = "Spring 2027"
@@ -532,14 +633,28 @@ class Command(BaseCommand):
                 f'Respectfully ask about {target_intake} PhD availability near the end ("Do you expect to have PhD opportunities for {target_intake}?"). Never assume open positions exist.'
             )
 
+        # Clean salutation formatting helper
+        clean_name = professor_name.strip()
+        if clean_name.startswith("Prof. ") or clean_name.startswith("Professor "):
+            clean_salutation = f"Dear {clean_name},"
+        elif clean_name.startswith("Assoc. Prof. "):
+            clean_salutation = f"Dear Associate Professor {clean_name[12:].strip()},"
+        elif clean_name.startswith("Associate Professor "):
+            clean_salutation = f"Dear Associate Professor {clean_name[20:].strip()},"
+        elif clean_name.startswith("Dr. "):
+            clean_salutation = f"Dear {clean_name},"
+        else:
+            clean_salutation = f"Dear Professor {clean_name},"
+
         prompt = f"""
-You are assisting Forhad Uddin Ahmed in drafting a highly personalized PhD outreach email to a prospective advisor.
+You are assisting Forhad Uddin Ahmed in drafting a highly personalized, polite, and persuasive PhD outreach email to a prospective advisor to maximize the opportunity of securing a funded PhD position or supervision.
 
 ### STRICT PROFILE CONTEXT & WRITING GUIDELINES:
 {profile_instructions_text or DEFAULT_PROFILE}
 
 ### TARGET PROFESSOR:
 - Name: {professor_name}
+- Suggested Salutation: {clean_salutation}
 - University: {selected_record.get('University', '')}
 - Department: {selected_record.get('Department/Lab', selected_record.get('Department', ''))}
 - Known Research Area: {selected_record.get('Research Area', '')}
@@ -564,15 +679,24 @@ You are assisting Forhad Uddin Ahmed in drafting a highly personalized PhD outre
    *(Do NOT inflate score merely because both work in general AI, ML, or computer science).*
 
 3. **Generate Email Draft (STRICTLY MAXIMUM 150 WORDS)**:
-   - **Salutation**: Formally address the professor using their full name (e.g., "Dear Professor {professor_name}," or "Dear {professor_name}," if title/Dr./Prof. is already included in the name).
-   - **Positioning**: Introduce Forhad as an "AI/ML Researcher and Software Engineer" (DO NOT state that he is currently a Lecturer). Do NOT write "I am applying for {target_intake} funded PhD positions" in the introduction; keep the intro focused on background and paper connection, and ask about PhD opportunities only at the inquiry stage.
-   - **Paper Reference & Connection**: Select 1–2 real and RECENT papers (MUST prioritize 2025 and 2026 papers from the scraped data; do NOT select old papers). Explain *why* the selected recent work is relevant rather than merely listing titles. Connect Forhad's actual research experience (Explainable AI, Machine Learning, predictive modeling, software systems) to the professor's specific recent research direction. Never invent titles or unsupported claims.
-   - **PhD Inquiry**: {phd_inquiry_rule}
-   - **Attachments**: Explicitly mention that both his **Resume and Academic Transcript** are attached for review (e.g. "I have attached my resume and academic transcript for your review."). Do NOT say only "CV attached".
-   - **Tone**: Concise, research-oriented, technically informed, respectful, confident, natural, avoiding corporate buzzwords, excessive flattery, or generic statements.
-   - **Sign-off**:
+   - **Salutation**: Use formal academic etiquette: `{clean_salutation}` (never duplicate titles like "Dear Professor Prof.").
+   - **Polite Opening**: Begin courteously with a polite greeting (e.g., "I hope this email finds you well." or "I hope you are having a productive semester."), immediately followed by positioning Forhad as an "AI/ML Researcher and Software Engineer" with research experience in the relevant area. (DO NOT state that he is currently a Lecturer. Do NOT state "I am applying for funded PhD positions" in the opening).
+   - **Thoughtful Research Bridge**:
+     - Cite 1–2 verified RECENT papers (strictly prioritizing 2025 and 2026 papers from the scraped data).
+     - Use respectful, intellectually mature academic phrasing (e.g., "I read with great interest your recent paper...", "I have been following your lab's work on..."). Do NOT use exaggerated praise like "I am deeply impressed" or "groundbreaking".
+     - Explain *why* that specific research problem or methodology is compelling, rather than just dropping titles.
+     - Naturally connect Forhad's actual research experience (Explainable AI, Machine Learning, predictive modeling, or software systems) to the professor's specific recent research focus.
+     - Maintain intellectual humility, technical credibility, and sincerity.
+   - **Respectful, Opportunity-Maximizing Inquiry**:
+     - Respectfully inquire whether the professor expects to have capacity or funded PhD opportunities for {target_intake} in their research group.
+     - Express polite deference to their time (e.g., "If your schedule permits, I would be very grateful for the opportunity to discuss potential research alignment or seek your advice.").
+     - Explicitly state that both his **Resume and Academic Transcript** are attached for review (e.g. "I have attached my resume and academic transcript for your review."). Do NOT say only "CV attached".
+   - **Polite Sign-off**:
+     Thank you very much for your time and consideration.
+
      Sincerely,
      Forhad Uddin Ahmed
+   - **Strict Word Count Constraint**: The total email MUST be between 115 and 140 words (STRICT CEILING: 145 words, never exceed 150 words).
 
 ### OUTPUT FORMAT:
 You MUST respond in this exact format:
@@ -594,9 +718,10 @@ You MUST respond in this exact format:
         if api_key:
             candidate_models = [
                 model_name or "gemini-3.6-flash",
+                "gemini-3.6-flash",
+                "gemini-3.5-flash-lite",
+                "gemini-3.1-flash-lite",
                 "gemini-3.8-flash",
-                "gemini-3.7-flash",
-                "gemini-3.5-flash",
             ]
             for m_name in candidate_models:
                 try:
@@ -677,6 +802,12 @@ You MUST respond in this exact format:
             else:
                 summary = "Research focus extracted from publications and profile."
                 email_draft = text.strip()
+
+        # Clean email_draft: remove accidental Subject line or markdown fences
+        if email_draft:
+            email_draft = re.sub(r"^Subject:.*?\n+", "", email_draft, flags=re.IGNORECASE).strip()
+            email_draft = re.sub(r"^```(?:markdown|text)?\n?", "", email_draft).strip()
+            email_draft = re.sub(r"\n?```$", "", email_draft).strip()
 
         return summary, email_draft, fit_score
 
