@@ -40,9 +40,11 @@ Follow this document strictly from Step 1 through Step 7.
 
 - ****Forbidden****: NEVER state or imply that he is currently a Lecturer (his BAIUST teaching appointment concluded in May 2026).
 
-- ****Target Intake****: Funded Spring 2027 PhD positions.
+- ****Target Intake & Degree****: 
+  - **USA**: Funded **PhD** positions for **Spring/Fall 2027**.
+  - **All Other Countries** (Germany, Japan, Malaysia, Netherlands, Sweden, Australia, South Korea, Hong Kong, China, etc.): Funded **Master's** positions (MS by research / Thesis Master's / GRA) for **Spring/Fall 2027**.
 
-- ****Inquiry phrasing****: Always ask if positions are expected (**"Do you expect to have PhD opportunities for Spring 2027?"**), never assume they are open.
+- ****Inquiry phrasing****: Always ask if positions are expected ("Do you expect to have PhD opportunities for Spring/Fall 2027?" for USA; "Do you expect to have Master's opportunities for Spring/Fall 2027?" for non-USA), never assume they are open.
 
 ---
 
@@ -138,7 +140,12 @@ Follow this document strictly from Step 1 through Step 7.
 
 - ****LLM Fit Score (1–10)****: Realistic assessment of overlap with Forhad's background in ML, XAI, predictive modeling, AI-driven Software Engineering, and software systems.
 
-- ****Email Subject****: Formal academic subject (e.g., `Prospective PhD Applicant – Spring 2027 – Forhad Uddin Ahmed`).
+- ****Research Topic (3–6 words)****: Concise topic capturing the technical intersection (e.g., `Reliable AI-Driven Software Engineering`).
+
+- ****Email Subject****: Formal academic subject following the pattern:
+  `Exploring {Degree} Research on {Research Topic} – Forhad Uddin Ahmed`
+  - USA: `Exploring PhD Research on Reliable AI-Driven Software Engineering – Forhad Uddin Ahmed`
+  - Non-USA: `Exploring Master's Research on Reliable AI-Driven Software Engineering – Forhad Uddin Ahmed`
 
 - ****Email Draft****:
 
@@ -177,11 +184,11 @@ Follow this document strictly from Step 1 through Step 7.
 
  \- The research connection should be at the research/problem level, not merely because both use the same programming language, framework, or general technology.
 
- - Respectful Spring 2027 PhD availability inquiry.
-   - For professors in Japan: Inquire about **Spring/Fall 2027** availability ("Do you expect to have PhD opportunities for Spring/Fall 2027?" or "for the Spring or Fall 2027 intake?"). Email Subject: `Prospective PhD Applicant – Spring/Fall 2027 – Forhad Uddin Ahmed`.
-   - For all other countries: Inquire about **Spring 2027** availability.
+  - Respectful Spring/Fall 2027 availability inquiry:
+    - **For professors in the USA**: Inquire about funded **PhD** opportunities for **Spring/Fall 2027** ("Do you expect to have PhD opportunities for Spring/Fall 2027?" or "for the Spring or Fall 2027 intake?"). Email Subject: `Prospective PhD Applicant – Spring/Fall 2027 – Forhad Uddin Ahmed`.
+    - **For all other countries** (Germany, Japan, Malaysia, Netherlands, Sweden, Australia, South Korea, Hong Kong, China, etc.): Inquire about funded **Master's** opportunities for **Spring/Fall 2027** ("Do you expect to have Master's opportunities for Spring/Fall 2027?" or "for the Spring or Fall 2027 intake?"). Email Subject: `Prospective Master's Applicant – Spring/Fall 2027 – Forhad Uddin Ahmed`.
 
- - Ask whether the professor **expects to have funded PhD opportunities for Spring 2027** (or **Spring/Fall 2027** for Japan). Never assume that a position is currently available.
+  - Never assume that a position is currently available. Always inquire whether the professor expects to have funded opportunities.
 
  \- Mention that both **\*\*Resume and Academic Transcript\*\*** are attached for review (not just CV).
 
