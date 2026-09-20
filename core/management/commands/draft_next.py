@@ -346,21 +346,34 @@ class Command(BaseCommand):
             self.stdout.write(f"Scraped summary length: {len(scraped_data)} chars.")
 
             rec_country = str(selected_record.get(country_col or "Country", "")).strip().lower()
-            is_japan = rec_country == "japan" or bool(country_filter and "japan" in country_filter.lower())
+            is_usa = rec_country in ["usa", "us", "united states"] or bool(
+                country_filter and country_filter.lower() in ["usa", "us", "united states"]
+            )
+            target_degree = "PhD" if is_usa else "Master's"
             opt_intake = options.get("intake")
-            target_intake = opt_intake or ("Spring/Fall 2027" if is_japan else "Spring 2027")
-            email_subject = f"Prospective PhD Applicant – {target_intake} – Forhad Uddin Ahmed"
+            target_intake = opt_intake or "Spring/Fall 2027"
 
             # -------------------------------------------------------------
             # 4. LLM Integration (Drafting the Email)
             # -------------------------------------------------------------
-            self.stdout.write("Generating research summary, fit score, and email draft via LLM...")
-            summary, email_draft, fit_score = self._generate_llm_content(
+            self.stdout.write(f"Generating research summary, fit score, and {target_degree} email draft via LLM...")
+            summary, email_draft, fit_score, research_topic = self._generate_llm_content(
                 professor_name=selected_name,
                 selected_record=selected_record,
                 scraped_data=scraped_data,
                 target_intake=target_intake,
+                target_degree=target_degree,
             )
+
+            if not research_topic:
+                raw_area = str(selected_record.get("Research Area", "")).strip()
+                if raw_area:
+                    first_area = re.split(r"[,;/|]", raw_area)[0].strip()
+                    research_topic = first_area if len(first_area.split()) <= 6 else " ".join(first_area.split()[:5])
+                else:
+                    research_topic = "Reliable AI-Driven Software Engineering"
+
+            email_subject = f"Exploring {target_degree} Research on {research_topic} – Forhad Uddin Ahmed"
 
             word_count = len(email_draft.split())
             if word_count > 150:
@@ -603,13 +616,19 @@ class Command(BaseCommand):
         return draft
 
     def _generate_llm_content(
-        self, professor_name: str, selected_record: Dict[str, Any], scraped_data: str, target_intake: str = "Spring 2027"
-    ) -> Tuple[str, str, int]:
+        self,
+        professor_name: str,
+        selected_record: Dict[str, Any],
+        scraped_data: str,
+        target_intake: str = "Spring/Fall 2027",
+        target_degree: str = "PhD",
+    ) -> Tuple[str, str, int, str]:
         """
         Uses google-generativeai / google.genai / OpenAI to generate:
           a) LLM Research Summary
           b) Email Draft (max 150 words)
           c) LLM Fit Score (1-10)
+          d) Research Topic (3-6 words)
         """
         api_key = (
             os.getenv("GEMINI_API_KEY")
@@ -624,14 +643,9 @@ class Command(BaseCommand):
             with open(profile_instructions_path, "r", encoding="utf-8") as f:
                 profile_instructions_text = f.read()
 
-        if "spring/fall" in target_intake.lower() or "spring or fall" in target_intake.lower():
-            phd_inquiry_rule = (
-                f'Respectfully ask about {target_intake} PhD availability near the end ("Do you expect to have PhD opportunities for {target_intake}?" or "for the Spring or Fall 2027 intake?"). Explicitly ask about {target_intake}, never only Spring or only Fall. Never assume open positions exist.'
-            )
-        else:
-            phd_inquiry_rule = (
-                f'Respectfully ask about {target_intake} PhD availability near the end ("Do you expect to have PhD opportunities for {target_intake}?"). Never assume open positions exist.'
-            )
+        degree_inquiry_rule = (
+            f'Respectfully ask about {target_intake} {target_degree} availability near the end ("Do you expect to have {target_degree} opportunities for {target_intake}?" or "for the {target_intake} intake?"). Explicitly ask about {target_intake} and {target_degree}, never assume open positions exist.'
+        )
 
         # Clean salutation formatting helper
         clean_name = professor_name.strip()
@@ -647,7 +661,7 @@ class Command(BaseCommand):
             clean_salutation = f"Dear Professor {clean_name},"
 
         prompt = f"""
-You are assisting Forhad Uddin Ahmed in drafting a highly personalized, polite, and persuasive PhD outreach email to a prospective advisor to maximize the opportunity of securing a funded PhD position or supervision.
+You are assisting Forhad Uddin Ahmed in drafting a highly personalized, polite, and persuasive {target_degree} outreach email to a prospective advisor to maximize the opportunity of securing a funded {target_degree} position or supervision.
 
 ### STRICT PROFILE CONTEXT & WRITING GUIDELINES:
 {profile_instructions_text or DEFAULT_PROFILE}
@@ -678,9 +692,14 @@ You are assisting Forhad Uddin Ahmed in drafting a highly personalized, polite, 
    - 1–2: Very limited overlap.
    *(Do NOT inflate score merely because both work in general AI, ML, or computer science).*
 
-3. **Generate Email Draft (STRICTLY MAXIMUM 150 WORDS)**:
+3. **Generate Tailored Research Topic (3-6 words)**:
+   - Identify the primary technical intersection between Forhad's background (Explainable AI, Machine Learning, AI-driven Software Engineering) and the professor's recent publications.
+   - Summarize this intersection in a concise, title-cased 3 to 6 word phrase (e.g., "Reliable AI-Driven Software Engineering", "Explainable AI in Healthcare", "Trustworthy Deep Learning Systems", "Robust Machine Learning and System Security").
+   - Output ONLY the topic phrase. Do NOT include words like "Exploring", "PhD", "Master's", "Research on", or Forhad's name.
+
+4. **Generate Email Draft (STRICTLY MAXIMUM 150 WORDS)**:
    - **Salutation**: Use formal academic etiquette: `{clean_salutation}` (never duplicate titles like "Dear Professor Prof.").
-   - **Polite Opening**: Begin courteously with a polite greeting (e.g., "I hope this email finds you well." or "I hope you are having a productive semester."), immediately followed by positioning Forhad as an "AI/ML Researcher and Software Engineer" with research experience in the relevant area. (DO NOT state that he is currently a Lecturer. Do NOT state "I am applying for funded PhD positions" in the opening).
+   - **Polite Opening**: Begin courteously with a polite greeting (e.g., "I hope this email finds you well." or "I hope you are having a productive semester."), immediately followed by positioning Forhad as an "AI/ML Researcher and Software Engineer" with research experience in the relevant area. (DO NOT state that he is currently a Lecturer. Do NOT state "I am applying for funded positions" in the opening).
    - **Thoughtful Research Bridge**:
      - Cite 1–2 verified RECENT papers (strictly prioritizing 2025 and 2026 papers from the scraped data).
      - Use respectful, intellectually mature academic phrasing (e.g., "I read with great interest your recent paper...", "I have been following your lab's work on..."). Do NOT use exaggerated praise like "I am deeply impressed" or "groundbreaking".
@@ -688,7 +707,7 @@ You are assisting Forhad Uddin Ahmed in drafting a highly personalized, polite, 
      - Naturally connect Forhad's actual research experience (Explainable AI, Machine Learning, predictive modeling, or software systems) to the professor's specific recent research focus.
      - Maintain intellectual humility, technical credibility, and sincerity.
    - **Respectful, Opportunity-Maximizing Inquiry**:
-     - Respectfully inquire whether the professor expects to have capacity or funded PhD opportunities for {target_intake} in their research group.
+     - {degree_inquiry_rule}
      - Express polite deference to their time (e.g., "If your schedule permits, I would be very grateful for the opportunity to discuss potential research alignment or seek your advice.").
      - Explicitly state that both his **Resume and Academic Transcript** are attached for review (e.g. "I have attached my resume and academic transcript for your review."). Do NOT say only "CV attached".
    - **Polite Sign-off**:
@@ -708,6 +727,10 @@ You MUST respond in this exact format:
 [FIT_SCORE]
 <An integer between 1 and 10>
 [/FIT_SCORE]
+
+[RESEARCH_TOPIC]
+<3-6 word research topic here>
+[/RESEARCH_TOPIC]
 
 [EMAIL_DRAFT]
 <Your outreach email draft under 150 words here>
@@ -768,13 +791,20 @@ You MUST respond in this exact format:
 
         # Deterministic fallback if API keys not provided or network failure
         self.stdout.write(self.style.WARNING("Using deterministic template generation (no LLM key or call failed)."))
-        return self._generate_deterministic_content(professor_name, selected_record, scraped_data, target_intake=target_intake)
+        return self._generate_deterministic_content(
+            professor_name,
+            selected_record,
+            scraped_data,
+            target_intake=target_intake,
+            target_degree=target_degree,
+        )
 
-    def _parse_llm_response(self, text: str) -> Tuple[str, str, int]:
-        """Extracts summary, email draft, and fit score from LLM tags."""
+    def _parse_llm_response(self, text: str) -> Tuple[str, str, int, str]:
+        """Extracts summary, email draft, fit score, and research topic from LLM tags."""
         summary = ""
         email_draft = ""
         fit_score = 8
+        research_topic = ""
 
         summary_match = re.search(r"\[RESEARCH_SUMMARY\](.*?)\[/RESEARCH_SUMMARY\]", text, re.DOTALL | re.IGNORECASE)
         if summary_match:
@@ -788,6 +818,14 @@ You MUST respond in this exact format:
                     fit_score = max(1, min(10, int(score_str[0])))
             except Exception:
                 fit_score = 8
+
+        topic_match = re.search(r"\[RESEARCH_TOPIC\](.*?)\[/RESEARCH_TOPIC\]", text, re.DOTALL | re.IGNORECASE)
+        if topic_match:
+            research_topic = topic_match.group(1).strip()
+            # Clean up quotes, markdown, and accidental prefixes/suffixes
+            research_topic = re.sub(r'^["\'`]+|["\'`]+$', '', research_topic).strip()
+            research_topic = re.sub(r"^Exploring\s+(?:PhD|Master'?s)?\s*Research\s*on\s*", "", research_topic, flags=re.IGNORECASE).strip()
+            research_topic = re.sub(r"\s*[–—-]\s*Forhad.*$", "", research_topic, flags=re.IGNORECASE).strip()
 
         draft_match = re.search(r"\[EMAIL_DRAFT\](.*?)\[/EMAIL_DRAFT\]", text, re.DOTALL | re.IGNORECASE)
         if draft_match:
@@ -809,11 +847,16 @@ You MUST respond in this exact format:
             email_draft = re.sub(r"^```(?:markdown|text)?\n?", "", email_draft).strip()
             email_draft = re.sub(r"\n?```$", "", email_draft).strip()
 
-        return summary, email_draft, fit_score
+        return summary, email_draft, fit_score, research_topic
 
     def _generate_deterministic_content(
-        self, professor_name: str, selected_record: Dict[str, Any], scraped_data: str, target_intake: str = "Spring 2027"
-    ) -> Tuple[str, str, int]:
+        self,
+        professor_name: str,
+        selected_record: Dict[str, Any],
+        scraped_data: str,
+        target_intake: str = "Spring/Fall 2027",
+        target_degree: str = "PhD",
+    ) -> Tuple[str, str, int, str]:
         """High quality deterministic fallback conforming to the prompt specification."""
         full_name = professor_name.strip() if professor_name else "Professor"
         if full_name.lower().startswith("prof") or full_name.lower().startswith("dr"):
@@ -848,6 +891,7 @@ You MUST respond in this exact format:
                 f"language model representations, and semantic understanding, with recent advancements demonstrated in '{featured_paper}'."
             )
             fit_score = 8
+            research_topic = "Language Models and Robust NLP"
             research_bridge = (
                 f"My research background centers on Machine Learning, Natural Language Processing, and Explainable AI (XAI). "
                 f"Given your lab's work on robust language representations and model evaluation, I believe my background in "
@@ -859,6 +903,7 @@ You MUST respond in this exact format:
                 f"and developer tooling, focusing on reliability and empirical rigor as demonstrated in '{featured_paper}'."
             )
             fit_score = 9
+            research_topic = "Reliable AI-Driven Software Engineering"
             research_bridge = (
                 f"My research background spans AI-driven Software Engineering, Explainable AI, and software systems. "
                 f"Having worked on both machine learning architectures and scalable software engineering systems, I am particularly "
@@ -870,6 +915,7 @@ You MUST respond in this exact format:
                 f"and robust machine learning systems, as reflected in '{featured_paper}'."
             )
             fit_score = 9
+            research_topic = "Explainable and Trustworthy AI Systems"
             research_bridge = (
                 f"My research background directly centers on Explainable AI (XAI) and trustworthy machine learning, where I have "
                 f"published peer-reviewed work on feature attribution and model transparency. Given your focus on reliable and interpretable "
@@ -881,6 +927,7 @@ You MUST respond in this exact format:
                 f"and robust defense mechanisms, as highlighted in '{featured_paper}'."
             )
             fit_score = 8
+            research_topic = "Robust Machine Learning and System Security"
             research_bridge = (
                 f"My research background centers on Machine Learning, Explainable AI, and robust software systems. "
                 f"Given your focus on dependable computing and security analysis, I believe my experience in rigorous model "
@@ -892,6 +939,7 @@ You MUST respond in this exact format:
                 f"and computational systems, emphasizing robust methodologies as demonstrated in '{featured_paper}'."
             )
             fit_score = 8
+            research_topic = "Reliable Machine Learning and Software Systems"
             research_bridge = (
                 f"My research background centers on Machine Learning, Explainable AI (XAI), and predictive modeling for complex systems. "
                 f"Given your focus on principled machine learning and data-driven methods, I believe my experience in trustworthy "
@@ -904,11 +952,11 @@ You MUST respond in this exact format:
             f"with peer-reviewed research experience in machine learning and explainable AI. I have been following "
             f"your lab's work at {univ}, particularly your recent paper '{featured_paper}'.\n\n"
             f"{research_bridge}\n\n"
-            f"Do you expect to have PhD opportunities for {target_intake}? I would welcome the opportunity to discuss "
+            f"Do you expect to have {target_degree} opportunities for {target_intake}? I would welcome the opportunity to discuss "
             f"potential alignment if your schedule permits. I have attached my resume and academic transcript for your review.\n\n"
             f"Thank you for your time and consideration.\n\n"
             f"Sincerely,\n"
             f"Forhad Uddin Ahmed"
         )
 
-        return summary, email_draft, fit_score
+        return summary, email_draft, fit_score, research_topic
