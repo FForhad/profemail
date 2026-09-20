@@ -13,7 +13,7 @@ Current professional positioning:
 AI/ML Researcher & Software Engineer
 
 Current goal:
-Apply for funded PhD positions, primarily in AI/ML, intelligent systems, Explainable AI, AI-driven Software Engineering, NLP/LLMs, and related areas.
+Apply for funded PhD positions in the USA, and funded Master's positions in all other countries (Germany, Japan, Malaysia, Netherlands, Sweden, Australia, South Korea, Hong Kong, China, etc.), primarily in AI/ML, intelligent systems, Explainable AI, AI-driven Software Engineering, NLP/LLMs, and related areas.
 
 IMPORTANT:
 Do NOT describe Forhad as a current Lecturer unless he explicitly confirms that he is currently working as a Lecturer.
@@ -283,12 +283,14 @@ Do NOT write "I am applying for Spring 2027 funded PhD positions" in the email o
 
 
 ==================================================
-12. PHD APPLICATION TARGET
+12. APPLICATION TARGET (PHD VS. MASTER'S)
 ==================================================
 
 Primary objective:
 
-Find and apply to suitable funded PhD opportunities.
+Find and apply to suitable funded graduate research opportunities:
+• USA: Inquire about funded PhD positions.
+• All Other Countries (Germany, Japan, Malaysia, Netherlands, Sweden, Australia, South Korea, Hong Kong, China, etc.): Inquire about funded Master's positions (MS by research / Thesis Master's / GRA).
 
 Typical target areas:
 
@@ -303,31 +305,44 @@ Typical target areas:
 
 
 ==================================================
-13. IMPORTANT DATE / STATUS RULE
+13. IMPORTANT INTAKE & DATE RULES
 ==================================================
 
 Current date context should always be checked before writing application emails.
 
-For Spring 2027 applications, do not automatically assume that positions are still open.
-
-If availability is uncertain, ask:
-
-"Do you expect to have PhD opportunities for Spring 2027?"
-
-JAPAN-SPECIFIC INTAKE RULE:
-In Japan, graduate schools routinely admit students for both Spring (April) and Fall (September/October) semesters. For outreach to professors in Japan, inquire about Spring/Fall 2027:
-"Do you expect to have PhD opportunities for Spring/Fall 2027?" (or "for the Spring or Fall 2027 intake?").
-Do not restrict the inquiry to only Spring 2027 for Japanese institutions.
+SPRING / FALL INTAKE RULE (ALL COUNTRIES):
+Always inquire about Spring or Fall 2027 intake ("Spring/Fall 2027" or "for the Spring or Fall 2027 intake"). Do not restrict the inquiry to only Spring or only Fall.
+- For USA: "Do you expect to have PhD opportunities for Spring/Fall 2027?"
+- For all other countries: "Do you expect to have Master's opportunities for Spring/Fall 2027?"
 
 Do not write:
 
-"I understand that you have an open PhD position"
+"I understand that you have an open position"
 
 unless verified.
 
 
 ==================================================
-14. STYLE
+14. EMAIL SUBJECT LINE FORMAT
+==================================================
+
+Format:
+Exploring {Degree} Research on {Research Topic} – Forhad Uddin Ahmed
+
+Rules:
+• Degree:
+  - "PhD" for USA
+  - "Master's" for all other countries (Germany, Japan, Malaysia, Netherlands, Sweden, Australia, South Korea, Hong Kong, China, etc.)
+• Research Topic:
+  - Concise 3–6 words capturing the specific technical intersection between your background and the professor's recent publications.
+  - Do not include words like "Exploring", "PhD", "Master's", "Research on", or Forhad's name in the topic itself.
+• Examples:
+  - USA: "Exploring PhD Research on Reliable AI-Driven Software Engineering – Forhad Uddin Ahmed"
+  - Non-USA: "Exploring Master's Research on Reliable AI-Driven Software Engineering – Forhad Uddin Ahmed"
+
+
+==================================================
+15. STYLE
 ==================================================
 
 Use clear, natural academic English.
@@ -348,7 +363,7 @@ Specific → Relevant → Concise → Professional
 
 
 ==================================================
-15. FINAL CHECK BEFORE GENERATING AN EMAIL
+16. FINAL CHECK BEFORE GENERATING AN EMAIL
 ==================================================
 
 Before producing an email, verify:
