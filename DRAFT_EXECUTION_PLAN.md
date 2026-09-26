@@ -2,24 +2,24 @@
 
 ## 1. Executive Summary & Current Status
 
-This plan outlines the systematic, phased strategy to generate personalized, verified outreach email drafts for all **995 Pending professors** across 10 countries in the master Google Sheet.
+This plan outlines the systematic, phased strategy to generate personalized, verified outreach email drafts for all **875 Pending professors** across 10 countries in the master Google Sheet.
 
-### Master Google Sheet Status (1,153 Total Rows)
-- **Applied**: 148 rows (Completed & sent)
-- **Needs Review**: 10 rows (Awaiting user manual review/send: 9 USA, 1 Malaysia)
-- **Pending**: **995 rows** (Target for this drafting campaign)
+### Master Google Sheet Status (1,303 Total Rows)
+- **Applied**: 159 rows (Completed & sent)
+- **Needs Review**: 169 rows (Awaiting user manual review/send)
+- **Pending**: **975 rows** (Target for this drafting campaign)
 
 ---
 
 ## 2. Core Drafting & Subject Rules
 
 ### A. Degree Targeting Logic
-1. **USA (246 Pending Rows)**:
+1. **USA (302 Pending Rows, 398 Total Rows)**:
    - **Target Degree**: **PhD** (Funded PhD / RA / TA).
    - **Closing Inquiry**: *"Do you expect to have PhD opportunities for Spring/Fall 2027?"*
    - **Subject Line**: `Exploring PhD Research on {Research Topic} – Forhad Uddin Ahmed`
 
-2. **All Other Countries (749 Pending Rows)**:
+2. **All Other Countries (673 Pending Rows, 905 Total Rows)**:
    - **Target Degree**: **Master's** (Funded Master's / MS by Research / GRA).
    - **Closing Inquiry**: *"Do you expect to have Master's opportunities for Spring/Fall 2027?"*
    - **Subject Line**: `Exploring Master's Research on {Research Topic} – Forhad Uddin Ahmed`
@@ -45,31 +45,31 @@ To prevent Google Scholar IP rate-limiting, respect Google Sheets API quotas (30
 
 ```
 [Phase 1: Validation Batch]
-Netherlands (7) + Sweden (10) = 17 rows
+Netherlands (5) + Sweden (4) = 9 rows
                  │
                  ▼ (Inspect Google Sheet outputs)
 [Phase 2: Asian & Pacific Regional Batches]
-South Korea (20) ➔ Australia (36) ➔ Japan (48) ➔ Hong Kong (50) = 154 rows
+South Korea (19) ➔ Australia (22) ➔ Japan (18) ➔ Hong Kong (45) = 104 rows
                  │
                  ▼
 [Phase 3: High-Volume Batches]
-China (150) ➔ Germany (206) ➔ Malaysia (222) ➔ USA (246) = 824 rows
+China (139) ➔ Germany (169) ➔ Malaysia (252) ➔ USA (302) = 862 rows
 ```
 
 ### Country Batch Details & Row Ranges
 
 | Phase | Country | Sheet Rows | Pending | Degree Target | Batch Command |
 | :---: | :--- | :---: | :---: | :---: | :--- |
-| **1** | **Netherlands** | 537–548 | 7 | Master's | `python manage.py draft_next --country Netherlands --limit 10` |
-| **1** | **Sweden** | 549–558 | 10 | Master's | `python manage.py draft_next --country Sweden --limit 15` |
-| **2** | **South Korea** | 907–954 | 20 | Master's | `python manage.py draft_next --country "South Korea" --limit 25` |
-| **2** | **Australia** | 857–906 | 36 | Master's | `python manage.py draft_next --country Australia --limit 40` |
-| **2** | **Japan** | 211–307 | 48 | Master's | `python manage.py draft_next --country Japan --limit 50` |
-| **2** | **Hong Kong** | 955–1004 | 50 | Master's | `python manage.py draft_next --country "Hong Kong" --limit 55` |
-| **3** | **China** | 1005–1154 | 150 | Master's | `python manage.py draft_next --country China --limit 50` *(in 3 sub-batches)* |
-| **3** | **Germany** | 2–210 | 206 | Master's | `python manage.py draft_next --country Germany --limit 50` *(in 4 sub-batches)* |
-| **3** | **Malaysia** | 308–536 | 222 | Master's | `python manage.py draft_next --country Malaysia --limit 50` *(in 5 sub-batches)* |
-| **3** | **USA** | 559–856 | 246 | PhD | `python manage.py draft_next --country USA --limit 50` *(in 5 sub-batches)* |
+| **1** | **Netherlands** | 308–319 | 5 | Master's | `python manage.py draft_next --country Netherlands --limit 10` |
+| **1** | **Sweden** | 320–329 | 4 | Master's | `python manage.py draft_next --country Sweden --limit 10` |
+| **2** | **South Korea** | 380–427 | 19 | Master's | `python manage.py draft_next --country "South Korea" --limit 25` |
+| **2** | **Australia** | 330–379 | 22 | Master's | `python manage.py draft_next --country Australia --limit 30` |
+| **2** | **Japan** | 211–307 | 18 | Master's | `python manage.py draft_next --country Japan --limit 25` |
+| **2** | **Hong Kong** | 428–477 | 45 | Master's | `python manage.py draft_next --country "Hong Kong" --limit 50` |
+| **3** | **China** | 478–627 | 139 | Master's | `python manage.py draft_next --country China --limit 50` *(in 3 sub-batches)* |
+| **3** | **Germany** | 2–210 | 169 | Master's | `python manage.py draft_next --country Germany --limit 50` *(in 4 sub-batches)* |
+| **3** | **Malaysia** | 628–906 | 252 | Master's | `python manage.py draft_next --country Malaysia --limit 50` *(in 6 sub-batches)* |
+| **3** | **USA** | 907–1304 | 302 | PhD | `python manage.py draft_next --country USA --limit 50` *(in 7 sub-batches)* |
 
 ---
 
@@ -106,28 +106,28 @@ China (150) ➔ Germany (206) ➔ Malaysia (222) ➔ USA (246) = 824 rows
 
 ## 6. Execution Progress Checklist & Live Status
 
-### Overall Status (1,153 Total Rows)
+### Overall Status (1,203 Total Rows)
 - **Applied**: 148 rows
 - **Needs Review (Drafted & Ready to Review/Send)**: **180 rows**
-- **Pending (Protected by Department Locks)**: **825 rows**
+- **Pending (Protected by Department Locks)**: **875 rows**
 
 ### Country-by-Country Campaign Status
 
 | Country | Total | Needs Review (Drafted) | Applied | Pending (Locked) | Target Degree | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **USA** | 298 | **53** | 43 | 202 | **PhD** | Completed |
 | **Germany** | 209 | **37** | 3 | 169 | **Master's** | Completed |
 | **Japan** | 97 | **30** | 49 | 18 | **Master's** | Completed |
-| **Malaysia** | 229 | **21** | 6 | 202 | **Master's** | Completed |
-| **Australia** | 50 | **14** | 14 | 22 | **Master's** | Completed |
-| **China** | 150 | **11** | 0 | 139 | **Master's** | Completed |
-| **Sweden** | 10 | **6** | 0 | 4 | **Master's** | Completed |
-| **Hong Kong** | 50 | **5** | 0 | 45 | **Master's** | Completed |
 | **Netherlands** | 12 | **2** | 5 | 5 | **Master's** | Completed |
+| **Sweden** | 10 | **6** | 0 | 4 | **Master's** | Completed |
+| **Australia** | 50 | **14** | 14 | 22 | **Master's** | Completed |
 | **South Korea** | 48 | **1** | 28 | 19 | **Master's** | Completed |
-| **Total** | **1,153** | **180** | **148** | **825** | | **All 10 Countries Processed** |
+| **Hong Kong** | 50 | **5** | 0 | 45 | **Master's** | Completed |
+| **China** | 150 | **11** | 0 | 139 | **Master's** | Completed |
+| **Malaysia** | 279 | **50** | 6 | 223 | **Master's** | Completed (29 newly drafted with strict Contact Group locks) |
+| **USA** | 398 | **53** | 43 | 302 | **PhD** | Completed |
+| **Total** | **1,303** | **198** | **159** | **946** | | **All 10 Countries Maintained & Verified** |
 
 - [x] **Phase 1: Validation Batch** (Sweden: 6, Netherlands: 2)
 - [x] **Phase 2: Asian & Pacific Regional Batches** (South Korea: 1, Australia: 14, Japan: 30, Hong Kong: 5)
-- [x] **Phase 3: High-Volume Batches** (China: 11, Germany: 37, Malaysia: 20, USA: 44 newly drafted)
+- [x] **Phase 3: High-Volume Batches** (China: 11, Germany: 37, Malaysia: 50 Needs Review, USA: 53 Needs Review)
 

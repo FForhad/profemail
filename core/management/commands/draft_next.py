@@ -91,6 +91,12 @@ class Command(BaseCommand):
             default=False,
             help="Enforce group locks across all rows in the sheet even when --start-row is specified.",
         )
+        parser.add_argument(
+            "--cooldown-days",
+            type=int,
+            default=9,
+            help="Number of days before a department/contact group can be re-contacted after an 'Applied' status (default: 9).",
+        )
 
     def handle(self, *args, **options):
         self.stdout.write(self.style.NOTICE("=== Starting PhD Outreach Agent: draft_next ==="))
@@ -204,7 +210,26 @@ class Command(BaseCommand):
             )
             return
 
-        locked_statuses = {"researching", "needs review", "approved", "applied"}
+        date_col = find_key(["First Contact Date", "Contact Date", "Last Contact Date"])
+        cooldown_days = options.get("cooldown_days", 9)
+        from datetime import datetime, date
+
+        today = date.today()
+
+        def parse_date(val: str) -> Optional[date]:
+            if not val or not val.strip():
+                return None
+            val = val.strip()
+            for fmt in ("%d %b %Y", "%d %B %Y", "%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y"):
+                try:
+                    return datetime.strptime(val, fmt).date()
+                except ValueError:
+                    pass
+            try:
+                from dateutil import parser
+                return parser.parse(val).date()
+            except Exception:
+                return None
 
         start_row = options.get("start_row")
         max_row = options.get("max_row")
@@ -218,7 +243,10 @@ class Command(BaseCommand):
             start_row is not None and not options.get("enforce_all_locks")
         )
 
-        # Identify locked groups
+        # Identify locked groups:
+        # 1. "researching", "needs review", "approved" always lock the group.
+        # 2. "applied" locks the group ONLY if the contact date is within the cooldown period (< cooldown_days).
+        #    If no contact date is recorded, it defaults to locked to be conservative.
         locked_groups = set()
         for idx, rec in enumerate(records):
             sheet_row = idx + 2
@@ -226,10 +254,23 @@ class Command(BaseCommand):
                 continue
             raw_group = str(rec.get(group_col, "")).strip()
             raw_status = str(rec.get(status_col, "")).strip().lower().replace("_", " ")
-            if raw_group and raw_status in locked_statuses:
-                locked_groups.add(raw_group)
+            if not raw_group:
+                continue
 
-        self.stdout.write(f"Active/Locked Contact Groups ({len(locked_groups)}): {locked_groups if locked_groups else 'None'}")
+            if raw_status in {"researching", "needs review", "approved"}:
+                locked_groups.add(raw_group)
+            elif raw_status == "applied":
+                d_str = str(rec.get(date_col, "")).strip() if date_col else ""
+                c_date = parse_date(d_str)
+                if c_date:
+                    days_since = (today - c_date).days
+                    if days_since < cooldown_days:
+                        locked_groups.add(raw_group)
+                else:
+                    # If applied with no date, keep locked conservatively
+                    locked_groups.add(raw_group)
+
+        self.stdout.write(f"Active/Locked Contact Groups ({len(locked_groups)} with {cooldown_days}-day cooldown): {locked_groups if locked_groups else 'None'}")
 
         # Filter eligible professors:
         # Pipeline Status must be "Pending" AND Contact Group must NOT be locked.
