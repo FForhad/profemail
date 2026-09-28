@@ -684,9 +684,14 @@ class Command(BaseCommand):
             with open(profile_instructions_path, "r", encoding="utf-8") as f:
                 profile_instructions_text = f.read()
 
-        degree_inquiry_rule = (
-            f'Respectfully ask about {target_intake} {target_degree} availability near the end ("Do you expect to have {target_degree} opportunities for {target_intake}?" or "for the {target_intake} intake?"). Explicitly ask about {target_intake} and {target_degree}, never assume open positions exist.'
-        )
+        if target_degree == "PhD":
+            degree_inquiry_rule = (
+                f'Respectfully ask about funded {target_intake} PhD availability near the end ("Do you expect to have funded PhD opportunities with a GRA or TA for {target_intake}?" or "for the {target_intake} intake?"). Explicitly inquire about funded PhD opportunities with a GRA or TA for {target_intake}, never assume open positions exist. Do NOT include "by research" for PhD.'
+            )
+        else:
+            degree_inquiry_rule = (
+                f'Respectfully ask about funded {target_intake} Master\'s by research availability near the end ("Do you expect to have funded Master\'s by research opportunities with a Graduate Research Assistantship (GRA) for {target_intake}?" or "for the {target_intake} intake?"). Explicitly inquire about funded Master\'s by research opportunities with a Graduate Research Assistantship (GRA) for {target_intake}, never assume open positions exist.'
+            )
 
         # Clean salutation formatting helper
         clean_name = professor_name.strip()
@@ -987,13 +992,18 @@ You MUST respond in this exact format:
                 f"models and scalable pipelines would allow me to contribute effectively to your lab."
             )
 
+        if target_degree == "PhD":
+            closing_question = f"Do you expect to have funded PhD opportunities with a GRA or TA for {target_intake}?"
+        else:
+            closing_question = f"Do you expect to have funded Master's by research opportunities with a Graduate Research Assistantship (GRA) for {target_intake}?"
+
         email_draft = (
             f"{salutation}\n\n"
             f"I hope this email finds you well. I am Forhad Uddin Ahmed, an AI/ML Researcher and Software Engineer "
             f"with peer-reviewed research experience in machine learning and explainable AI. I have been following "
             f"your lab's work at {univ}, particularly your recent paper '{featured_paper}'.\n\n"
             f"{research_bridge}\n\n"
-            f"Do you expect to have {target_degree} opportunities for {target_intake}? I would welcome the opportunity to discuss "
+            f"{closing_question} I would welcome the opportunity to discuss "
             f"potential alignment if your schedule permits. I have attached my resume and academic transcript for your review.\n\n"
             f"Thank you for your time and consideration.\n\n"
             f"Sincerely,\n"
