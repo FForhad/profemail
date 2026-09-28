@@ -15,13 +15,13 @@ This plan outlines the systematic, phased strategy to generate personalized, ver
 
 ### A. Degree Targeting Logic
 1. **USA (302 Pending Rows, 398 Total Rows)**:
-   - **Target Degree**: **PhD** (Funded PhD / RA / TA).
-   - **Closing Inquiry**: *"Do you expect to have PhD opportunities for Spring/Fall 2027?"*
+   - **Target Degree**: **PhD** (Funded PhD with GRA or TA).
+   - **Closing Inquiry**: *"Do you expect to have funded PhD opportunities with a GRA or TA for Spring/Fall 2027?"*
    - **Subject Line**: `Exploring PhD Research on {Research Topic} – Forhad Uddin Ahmed`
 
 2. **All Other Countries (673 Pending Rows, 905 Total Rows)**:
-   - **Target Degree**: **Master's** (Funded Master's / MS by Research / GRA).
-   - **Closing Inquiry**: *"Do you expect to have Master's opportunities for Spring/Fall 2027?"*
+   - **Target Degree**: **Master's** (Funded Master's by research with a GRA).
+   - **Closing Inquiry**: *"Do you expect to have funded Master's by research opportunities with a Graduate Research Assistantship (GRA) for Spring/Fall 2027?"*
    - **Subject Line**: `Exploring Master's Research on {Research Topic} – Forhad Uddin Ahmed`
    - *Countries*: Germany, Japan, Malaysia, Netherlands, Sweden, Australia, South Korea, Hong Kong, China.
 
@@ -106,28 +106,28 @@ China (139) ➔ Germany (169) ➔ Malaysia (252) ➔ USA (302) = 862 rows
 
 ## 6. Execution Progress Checklist & Live Status
 
-### Overall Status (1,203 Total Rows)
-- **Applied**: 148 rows
-- **Needs Review (Drafted & Ready to Review/Send)**: **180 rows**
-- **Pending (Protected by Department Locks)**: **875 rows**
+### Overall Status (1,303 Total Rows)
+- **Applied**: **246 rows** (Verified sent & contacted)
+- **Needs Review (Drafted & Ready to Send)**: **202 rows**
+- **Pending (Protected by Department Locks)**: **855 rows**
 
 ### Country-by-Country Campaign Status
 
 | Country | Total | Needs Review (Drafted) | Applied | Pending (Locked) | Target Degree | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Germany** | 209 | **37** | 3 | 169 | **Master's** | Completed |
-| **Japan** | 97 | **30** | 49 | 18 | **Master's** | Completed |
-| **Netherlands** | 12 | **2** | 5 | 5 | **Master's** | Completed |
-| **Sweden** | 10 | **6** | 0 | 4 | **Master's** | Completed |
-| **Australia** | 50 | **14** | 14 | 22 | **Master's** | Completed |
-| **South Korea** | 48 | **1** | 28 | 19 | **Master's** | Completed |
-| **Hong Kong** | 50 | **5** | 0 | 45 | **Master's** | Completed |
-| **China** | 150 | **11** | 0 | 139 | **Master's** | Completed |
-| **Malaysia** | 279 | **50** | 6 | 223 | **Master's** | Completed (29 newly drafted with strict Contact Group locks) |
-| **USA** | 398 | **53** | 43 | 302 | **PhD** | Completed |
-| **Total** | **1,303** | **198** | **159** | **946** | | **All 10 Countries Maintained & Verified** |
+| **Germany** | 209 | **11** | 29 | 169 | **Master's** | Completed & Synced |
+| **Japan** | 97 | **24** | 55 | 18 | **Master's** | Completed & Synced |
+| **Netherlands** | 12 | **0** | 7 | 5 | **Master's** | Completed & Synced |
+| **Sweden** | 10 | **0** | 6 | 4 | **Master's** | Completed & Synced |
+| **Australia** | 50 | **14** | 14 | 22 | **Master's** | Completed & Synced |
+| **South Korea** | 48 | **1** | 28 | 19 | **Master's** | Completed & Synced |
+| **Hong Kong** | 50 | **5** | 0 | 45 | **Master's** | Completed & Synced |
+| **China** | 150 | **11** | 0 | 139 | **Master's** | Completed & Synced |
+| **Malaysia** | 279 | **2** | 54 | 223 | **Master's** | Completed & Synced |
+| **USA** | 398 | **134** | 53 | 211 | **PhD** | Completed & Synced |
+| **Total** | **1,303** | **202** | **246** | **855** | | **All 10 Countries Maintained & Verified** |
 
 - [x] **Phase 1: Validation Batch** (Sweden: 6, Netherlands: 2)
 - [x] **Phase 2: Asian & Pacific Regional Batches** (South Korea: 1, Australia: 14, Japan: 30, Hong Kong: 5)
-- [x] **Phase 3: High-Volume Batches** (China: 11, Germany: 37, Malaysia: 50 Needs Review, USA: 53 Needs Review)
+- [x] **Phase 3: High-Volume Batches** (China: 11, Germany: 37, Malaysia: 50 Needs Review, USA: 144 Needs Review)
 
