@@ -216,7 +216,7 @@ The email should normally contain:
 2. Brief introduction
 3. Specific research connection referencing recent papers (**STRICTLY prioritize publications from 2025 and 2026**; never reference old papers from a decade ago when recent work exists)
 4. Relevant background
-5. Clear PhD inquiry
+5. Clear inquiry about funded position (Funded PhD with a GRA or TA for USA; Funded Master's by research with a GRA for other countries)
 6. Mention of attached materials (explicitly state that both **Resume and Academic Transcript** are attached for review, e.g., "I have attached my resume and academic transcript for your review." Do NOT say only "CV attached")
 7. Short closing
 
@@ -312,8 +312,8 @@ Current date context should always be checked before writing application emails.
 
 SPRING / FALL INTAKE RULE (ALL COUNTRIES):
 Always inquire about Spring or Fall 2027 intake ("Spring/Fall 2027" or "for the Spring or Fall 2027 intake"). Do not restrict the inquiry to only Spring or only Fall.
-- For USA: "Do you expect to have PhD opportunities for Spring/Fall 2027?"
-- For all other countries: "Do you expect to have Master's opportunities for Spring/Fall 2027?"
+- For USA: "Do you expect to have funded PhD opportunities with a GRA or TA for Spring/Fall 2027?" (Do not include "by research" for PhD)
+- For all other countries: "Do you expect to have funded Master's by research opportunities with a Graduate Research Assistantship (GRA) for Spring/Fall 2027?"
 
 Do not write:
 
