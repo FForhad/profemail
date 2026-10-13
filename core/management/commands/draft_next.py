@@ -781,11 +781,9 @@ You MUST respond in this exact format:
         # 1. Try google.genai (official new SDK)
         if api_key:
             candidate_models = [
-                model_name or "gemini-3.6-flash",
-                "gemini-3.6-flash",
                 "gemini-3.5-flash-lite",
-                "gemini-3.1-flash-lite",
-                "gemini-3.8-flash",
+                model_name or "gemini-3.5-flash-lite",
+                "gemini-3.6-flash",
             ]
             for m_name in candidate_models:
                 try:
