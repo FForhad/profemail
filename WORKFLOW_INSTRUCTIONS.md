@@ -150,7 +150,7 @@ Follow this document strictly from Step 1 through Step 7.
 - ****Email Draft****:
 
 ```
- \- Maximum **\*\*150 words\*\***.
+ - Target **~95–105 words** (strict maximum **110 words**). Zero filler pleasantries.
 
  \- Addressed formally using full name (\`Dear Professor \<FullName>,\` or \`Dear Prof. Dr. \<FullName>,\`). Use the professor's actual academic title when available and never invent a title.
 

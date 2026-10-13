@@ -417,9 +417,9 @@ class Command(BaseCommand):
             email_subject = f"Exploring {target_degree} Research on {research_topic} – Forhad Uddin Ahmed"
 
             word_count = len(email_draft.split())
-            if word_count > 150:
-                self.stdout.write(self.style.WARNING(f"Draft has {word_count} words (>150). Auto-shortening..."))
-                email_draft = self._shorten_email_draft(email_draft, max_words=145)
+            if word_count > 110:
+                self.stdout.write(self.style.WARNING(f"Draft has {word_count} words (>110). Auto-shortening to ~100 words..."))
+                email_draft = self._shorten_email_draft(email_draft, max_words=105)
                 word_count = len(email_draft.split())
 
             self.stdout.write(self.style.SUCCESS("--- Generated LLM Research Summary ---"))
@@ -610,31 +610,31 @@ class Command(BaseCommand):
 
         return "\n".join(extracted) if extracted else "No publication data available."
 
-    def _shorten_email_draft(self, draft: str, max_words: int = 145) -> str:
-        """Auto-shortens email draft via LLM to guarantee word count <= 150 words."""
+    def _shorten_email_draft(self, draft: str, max_words: int = 105) -> str:
+        """Auto-shortens email draft via LLM to guarantee word count <= 110 words (~100 words)."""
         api_key = os.getenv("GEMINI_API_KEY") or getattr(settings, "GEMINI_API_KEY", "")
-        model_name = os.getenv("GEMINI_MODEL") or getattr(settings, "GEMINI_MODEL", "gemini-3.8-flash")
+        model_name = os.getenv("GEMINI_MODEL") or getattr(settings, "GEMINI_MODEL", "gemini-3.5-flash-lite")
         if api_key:
             try:
                 from google import genai
                 client = genai.Client(api_key=api_key)
                 prompt = (
-                    f"Shorten this PhD outreach email draft so that its total word count is strictly under {max_words} words.\n"
+                    f"Shorten this graduate outreach email draft so that its total word count is around 95-105 words (strictly under {max_words} words).\n"
                     f"CRITICAL REQUIREMENTS:\n"
                     f"- Retain formal salutation using the professor's full name.\n"
-                    f"- Retain applicant positioning as 'AI/ML Researcher and Software Engineer'.\n"
+                    f"- Retain applicant positioning as 'AI/ML Researcher and Software Engineer' (DO NOT change identity).\n"
                     f"- Retain cited recent publications and genuine technical bridge.\n"
-                    f"- Retain polite Spring 2027 PhD availability inquiry.\n"
+                    f"- Retain polite graduate availability inquiry (Spring/Fall 2027).\n"
                     f"- Retain explicit mention that both resume and academic transcript are attached.\n"
                     f"- Retain formal sign-off: Sincerely,\\nForhad Uddin Ahmed.\n"
+                    f"- Omit pleasantry fillers ('I hope this email finds you well', 'Thank you very much for your time and consideration').\n"
                     f"Do NOT output markdown formatting tags, explanation, or commentary. Output ONLY the shortened email text.\n\n"
                     f"{draft}"
                 )
                 shorten_models = [
-                    model_name or "gemini-3.6-flash",
-                    "gemini-3.6-flash",
+                    model_name or "gemini-3.5-flash-lite",
                     "gemini-3.5-flash-lite",
-                    "gemini-3.1-flash-lite",
+                    "gemini-3.6-flash",
                 ]
                 for sm in shorten_models:
                     try:
@@ -743,25 +743,20 @@ You are assisting Forhad Uddin Ahmed in drafting a highly personalized, polite, 
    - Summarize this intersection in a concise, title-cased 3 to 6 word phrase (e.g., "Reliable AI-Driven Software Engineering", "Explainable AI in Healthcare", "Trustworthy Deep Learning Systems", "Robust Machine Learning and System Security").
    - Output ONLY the topic phrase. Do NOT include words like "Exploring", "PhD", "Master's", "Research on", or Forhad's name.
 
-4. **Generate Email Draft (STRICTLY MAXIMUM 150 WORDS)**:
+4. **Generate Email Draft (STRICTLY AROUND 100 WORDS, MAXIMUM 110 WORDS)**:
    - **Salutation**: Use formal academic etiquette: `{clean_salutation}` (never duplicate titles like "Dear Professor Prof.").
-   - **Polite Opening**: Begin courteously with a polite greeting (e.g., "I hope this email finds you well." or "I hope you are having a productive semester."), immediately followed by positioning Forhad as an "AI/ML Researcher and Software Engineer" with research experience in the relevant area. (DO NOT state that he is currently a Lecturer. Do NOT state "I am applying for funded positions" in the opening).
+   - **Direct Opening**: Begin directly by positioning Forhad as an "AI/ML Researcher and Software Engineer" with research experience in the relevant area (DO NOT include conversational pleasantries like "I hope this email finds you well"). (DO NOT state that he is currently a Lecturer. Do NOT state "I am applying for funded positions" in the opening).
    - **Thoughtful Research Bridge**:
      - Cite 1–2 verified RECENT papers (strictly prioritizing 2025 and 2026 papers from the scraped data).
-     - Use respectful, intellectually mature academic phrasing (e.g., "I read with great interest your recent paper...", "I have been following your lab's work on..."). Do NOT use exaggerated praise like "I am deeply impressed" or "groundbreaking".
-     - Explain *why* that specific research problem or methodology is compelling, rather than just dropping titles.
-     - Naturally connect Forhad's actual research experience (Explainable AI, Machine Learning, predictive modeling, or software systems) to the professor's specific recent research focus.
-     - Maintain intellectual humility, technical credibility, and sincerity.
+     - Use respectful, intellectually mature academic phrasing (e.g., "I read with great interest your recent paper...", "I was particularly interested in your work on...").
+     - Naturally connect Forhad's actual research experience (Explainable AI, Machine Learning, predictive modeling, or software systems) to the professor's specific recent research focus in 1–2 concise sentences.
    - **Respectful, Opportunity-Maximizing Inquiry**:
      - {degree_inquiry_rule}
-     - Express polite deference to their time (e.g., "If your schedule permits, I would be very grateful for the opportunity to discuss potential research alignment or seek your advice.").
      - Explicitly state that both his **Resume and Academic Transcript** are attached for review (e.g. "I have attached my resume and academic transcript for your review."). Do NOT say only "CV attached".
-   - **Polite Sign-off**:
-     Thank you very much for your time and consideration.
-
+   - **Direct Sign-off**:
      Sincerely,
      Forhad Uddin Ahmed
-   - **Strict Word Count Constraint**: The total email MUST be between 115 and 140 words (STRICT CEILING: 145 words, never exceed 150 words).
+   - **Strict Word Count Constraint**: The total email MUST be between 90 and 105 words (STRICT CEILING: 110 words). Zero filler, 100% technical signal.
 
 ### OUTPUT FORMAT:
 You MUST respond in this exact format:
