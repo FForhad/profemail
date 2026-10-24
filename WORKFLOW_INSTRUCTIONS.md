@@ -192,7 +192,7 @@ Follow this document strictly from Step 1 through Step 7.
 
  \- Mention that both **\*\*Resume and Academic Transcript\*\*** are attached for review (not just CV).
 
- \- Professional sign-off.
+ \- No sign-off or closing name in draft body (the formal signature is automatically attached at dispatch time).
 ```
 
 4. ********Email Style Requirements******:
@@ -217,7 +217,7 @@ $$- Short introduction.
 
 \\- Resume and academic transcript mention.
 
-\\- Professional sign-off.
+\\- End draft directly after attachments mention (formal signature is attached automatically upon dispatch).
 
 \`\`\`
 
@@ -588,3 +588,24 @@ Print a clean summary report to the user containing:
 4. ****Email Subject & Draft****: The email content and its exact word count.
 
 5. ****Sheet Status****: Confirmation that row was saved with status `Needs Review`.
+
+---
+
+**## Step 8: User Approval & Automated Email Dispatch**
+
+1. **User Review in Google Sheet**:
+   - The user opens the Google Sheet and reviews the drafted email in the `"Email Draft"` column.
+   - To approve the draft for sending, the user changes `"Pipeline Status"` from `Needs Review` to **`Approved`** using the dropdown.
+
+2. **Dispatch Command**:
+   - The user instructs the AI: `"Send approved emails"` (or runs `python manage.py send_approved`).
+   - System scans for all rows with `Pipeline Status == "Approved"`.
+   - Custom signature from `signature.txt` is merged into the email sign-off.
+   - Attachments from the `attachments/` directory (Resume, Academic Transcript) are attached.
+   - Emails are sent via personal Gmail SMTP using the App Password in `.env`.
+
+3. **Post-Send Sheet Updates**:
+   - `"Pipeline Status"` $\rightarrow$ updated to **`Applied`**.
+   - `"First Contact Date"` $\rightarrow$ updated to today's date (`YYYY-MM-DD`).
+   - `"Last Contact Date"` $\rightarrow$ updated to today's date (`YYYY-MM-DD`).
+
