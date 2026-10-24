@@ -626,7 +626,7 @@ class Command(BaseCommand):
                     f"- Retain cited recent publications and genuine technical bridge.\n"
                     f"- Retain polite graduate availability inquiry (Spring/Fall 2027).\n"
                     f"- Retain explicit mention that both resume and academic transcript are attached.\n"
-                    f"- Retain formal sign-off: Sincerely,\\nForhad Uddin Ahmed.\n"
+                    f"- Do NOT include any closing sign-off or name (e.g., do NOT include 'Sincerely,' or 'Forhad Uddin Ahmed') as the signature is automatically appended separately.\n"
                     f"- Omit pleasantry fillers ('I hope this email finds you well', 'Thank you very much for your time and consideration').\n"
                     f"Do NOT output markdown formatting tags, explanation, or commentary. Output ONLY the shortened email text.\n\n"
                     f"{draft}"
@@ -753,9 +753,9 @@ You are assisting Forhad Uddin Ahmed in drafting a highly personalized, polite, 
    - **Respectful, Opportunity-Maximizing Inquiry**:
      - {degree_inquiry_rule}
      - Explicitly state that both his **Resume and Academic Transcript** are attached for review (e.g. "I have attached my resume and academic transcript for your review."). Do NOT say only "CV attached".
-   - **Direct Sign-off**:
-     Sincerely,
-     Forhad Uddin Ahmed
+   - **No Sign-off / Signature**:
+     - Do NOT include any closing sign-off or name (e.g., do NOT include "Sincerely,", "Best regards,", or "Forhad Uddin Ahmed") at the end of the draft.
+     - End the email immediately after the availability inquiry and attachment mention. The email dispatch system automatically attaches his formal email signature when sending.
    - **Strict Word Count Constraint**: The total email MUST be between 90 and 105 words (STRICT CEILING: 110 words). Zero filler, 100% technical signal.
 
 ### OUTPUT FORMAT:
@@ -997,10 +997,7 @@ You MUST respond in this exact format:
             f"your lab's work at {univ}, particularly your recent paper '{featured_paper}'.\n\n"
             f"{research_bridge}\n\n"
             f"{closing_question} I would welcome the opportunity to discuss "
-            f"potential alignment if your schedule permits. I have attached my resume and academic transcript for your review.\n\n"
-            f"Thank you for your time and consideration.\n\n"
-            f"Sincerely,\n"
-            f"Forhad Uddin Ahmed"
+            f"potential alignment if your schedule permits. I have attached my resume and academic transcript for your review."
         )
 
         return summary, email_draft, fit_score, research_topic
