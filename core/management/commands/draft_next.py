@@ -293,6 +293,10 @@ class Command(BaseCommand):
 
             raw_status = str(rec.get(status_col, "")).strip().lower().replace("_", " ")
             raw_group = str(rec.get(group_col, "")).strip()
+            rec_name = str(rec.get(name_col or "Professor Name", "")).strip() if name_col else ""
+
+            if not rec_name or "@" in rec_name:
+                continue
 
             if raw_status == "pending" and raw_group not in locked_groups:
                 # Parse priority: 1 is highest
@@ -694,7 +698,8 @@ class Command(BaseCommand):
             )
 
         # Clean salutation formatting helper
-        clean_name = professor_name.strip()
+        clean_name = re.sub(r",\s*(Associate\s*Professor|Assistant\s*Professor|Professor|Prof\.|Dr\.|Ts\.).*$", "", professor_name, flags=re.IGNORECASE).strip()
+        clean_name = re.sub(r"\s+", " ", clean_name)
         if clean_name.startswith("Prof. ") or clean_name.startswith("Professor "):
             clean_salutation = f"Dear {clean_name},"
         elif clean_name.startswith("Assoc. Prof. "):
