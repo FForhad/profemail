@@ -1,14 +1,14 @@
 # Standard Operating Procedure (SOP): Malaysia Professor Discovery & Sheet Population
 
-This document specifies the standard workflow, institutional targets, validation rules, and data schemas for discovering, vetting, and populating faculty records for universities in Malaysia (QS World University Rankings $\le$ 250 and top research universities) into the PhD outreach tracking system.
+This document specifies the standard workflow, institutional targets, validation rules, and data schemas for discovering, vetting, and populating faculty records for universities in Malaysia (QS World University Rankings $\le$ 600 and top research universities) into the graduate outreach tracking system, with special emphasis on Senior Lecturers with prospective funding.
 
 ---
 
-## 1. Target Institutional Scope (QS Rank $\le$ 250 & Top Research Universities)
+## 1. Target Institutional Scope (QS Rank $\le$ 600 & Top Research Universities)
 
-Target institutions must be recognized Malaysian research universities within or near the QS Top 250:
+Target institutions include recognized Malaysian research universities and premier technology institutes within the QS Top 600:
 
-### Primary Target Universities:
+### Primary Research Universities (QS 1–250):
 1. **Universiti Malaya (UM)** — QS ~#60
    - Faculty of Computer Science & Information Technology (FCSIT)
    - Contact Group prefix: `UM-FCSIT`
@@ -29,36 +29,71 @@ Target institutions must be recognized Malaysian research universities within or
    - Faculty of Computing
    - Contact Group prefix: `UTM-COMP`
    - Domains: `utm.my`
-6. **Universiti Teknologi PETRONAS (UTP)** — QS ~#269
-   - Department of Computer & Information Sciences
-   - Contact Group prefix: `UTP-CIS`
-   - Domains: `utp.edu.my`
-7. **Taylor's University** — QS ~#251
+
+### Top Tier & Established Private / Specialized Universities (QS 251–600):
+6. **Taylor's University** — QS ~#251
    - School of Computer Science
    - Contact Group prefix: `TAYLORS-CS`
    - Domains: `taylors.edu.my`
-8. **Sunway University**
-   - School of Engineering and Technology / Department of Computing and Information Systems
-   - Contact Group prefix: `SUNWAY-SET`
-   - Domains: `sunway.edu.my`, `imail.sunway.edu.my`
+7. **UCSI University** — QS ~#265
+   - Institute of Computer Science and Digital Innovation (ICSDI)
+   - Contact Group prefix: `UCSI-ICSDI`
+   - Domains: `ucsiuniversity.edu.my`
+8. **Universiti Teknologi PETRONAS (UTP)** — QS ~#269
+   - Department of Computer & Information Sciences
+   - Contact Group prefix: `UTP-CIS`
+   - Domains: `utp.edu.my`
+9. **INTI International University** — QS ~#516
+   - Faculty of Information and Communications Technology (FICT)
+   - Contact Group prefix: `INTI-FICT`
+   - Domains: `newinti.edu.my`
+10. **Sunway University** — QS ~#539
+    - School of Engineering and Technology / Department of Computing and Information Systems
+    - Contact Group prefix: `SUNWAY-SET`
+    - Domains: `sunway.edu.my`, `imail.sunway.edu.my`
+11. **Universiti Utara Malaysia (UUM)** — QS ~#554
+    - School of Computing (SOC)
+    - Contact Group prefix: `UUM-SOC`
+    - Domains: `uum.edu.my`
+12. **Universiti Tunku Abdul Rahman (UTAR)** — QS ~#550-600
+    - Lee Kong Chian Faculty of Engineering and Science (LKC FES) / Faculty of Information and Communication Technology (FICT)
+    - Contact Group prefix: `UTAR-FICT`
+    - Domains: `utar.edu.my`
+13. **Universiti Tenaga Nasional (UNITEN)** — QS ~#550-600
+    - College of Computing and Informatics (CCI)
+    - Contact Group prefix: `UNITEN-CCI`
+    - Domains: `uniten.edu.my`
+14. **Universiti Malaysia Pahang Al-Sultan Abdullah (UMPSA)** — QS ~#600
+    - Faculty of Computing
+    - Contact Group prefix: `UMPSA-COMP`
+    - Domains: `umpsa.edu.my`
+15. **Multimedia University (MMU)** — Premier Digital Tech University
+    - Faculty of Computing and Informatics (FCI)
+    - Contact Group prefix: `MMU-FCI`
+    - Domains: `mmu.edu.my`
+16. **Monash University Malaysia & University of Nottingham Malaysia** (Premier Global Campuses)
+    - School of IT / School of Computer Science
+    - Contact Group prefix: `MUM-IT`, `UNM-CS`
+    - Domains: `monash.edu.my`, `nottingham.edu.my`
 
 ---
 
-## 2. Research Alignment Criteria
+## 2. Senior Lecturer & Funding Qualification Criteria
 
-Target faculty members must actively conduct research in domains aligned with Forhad Uddin Ahmed's profile (`PROFILE_INSTRUCTIONS.md`):
-- **Priority 1 (High)**:
-  - Machine Learning & Deep Learning (foundations, architectures)
-  - Explainable AI (XAI) & Interpretable Machine Learning
-  - Predictive Modeling & Time Series Forecasting
-  - AI-driven Software Engineering (automated debugging, code intelligence)
-- **Priority 2 (Medium)**:
-  - Natural Language Processing (NLP) & Large Language Models (LLMs)
-  - Computer Vision & Image Processing
-  - Intelligent Systems, Robotics & Cyber-Physical Systems
-  - Data Mining & Knowledge Graphs
-- **Priority 3 (Low)**:
-  - Systems for ML, Distributed Systems, Cloud Computing, AI Security & Privacy, General Data Science
+Target faculty members must be **Senior Lecturers** (*Pensyarah Kanan*), Assistant Professors, or research-active faculty with indicators of active research funding:
+
+1. **Academic Rank Focus**:
+   - Primary target: **Senior Lecturer** (*Pensyarah Kanan*) / Assistant Professor.
+   - Academic titles typically include: `Dr.`, `Ts. Dr.`, `Ir. Dr.`, or `Dr.` with Senior Lecturer appointment.
+2. **Funding & GRA Qualification**:
+   - Active grant holders under MOHE schemes: **FRGS** (*Fundamental Research Grant Scheme*), **PRGS** (*Prototype Development Research Grant*), or **LRGS**.
+   - University-funded internal grants (e.g. UM Research Grant / Bantuan Penyelidikan, UKM GUP, UTM Tier 1/2, UPM GP, etc.).
+   - Explicit graduate vacancies: Actively recruiting Master's by Research students with **Graduate Research Assistantship (GRA)** monthly stipends or tuition assistance.
+3. **Research Domain Alignment**:
+   - Faculty must conduct active research in domains aligned with Forhad Uddin Ahmed's profile (`PROFILE_INSTRUCTIONS.md`):
+     - **Priority 1 (High)**: Explainable AI (XAI), Machine Learning & Deep Learning architectures, Predictive Modeling, AI-driven Software Engineering (automated debugging, code intelligence).
+     - **Priority 2 (Medium)**: NLP & Large Language Models, Computer Vision, Intelligent Systems & Robotics, Healthcare / Financial AI Applications.
+     - **Priority 3 (Low)**: Cloud Computing, IoT/Edge AI, Cybersecurity, Information Systems.
 
 ---
 
