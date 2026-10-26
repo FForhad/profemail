@@ -10,13 +10,15 @@ The primary objective of this procedure is to ensure that prospective professors
 
 ### Principles:
 1. **Contiguous Country Blocks**: All records belonging to the same country must appear together in one continuous section of the sheet.
-2. **Strict Preservation of Row Integrity**:
+2. **Institutional & Departmental Grouping**:
+   - Within each country block, records are grouped and sorted by **`University` (A–Z)** so that all faculty members of the same institution appear together in a single contiguous block.
+   - Within each university, records are grouped and sorted by **`Department/Lab` (A–Z)**.
+3. **Strict Preservation of Row Integrity**:
    - Every row is treated as an atomic unit spanning all columns (`Professor Name` through `Next Action`).
    - No cell values, formulas, notes, or column alignments may be altered during reordering.
-3. **Stable Relative Ordering ("Upper Data Stays Upper")**:
-   - Within any country block, the original relative order of candidates must be strictly preserved.
-   - If Professor A was positioned above Professor B in the original sheet, Professor A must remain above Professor B after grouping.
-4. **Country Block Sequencing**:
+4. **Stable Relative Ordering ("Upper Data Stays Upper")**:
+   - Within any specific department, the original relative order of candidates is strictly preserved.
+5. **Country Block Sequencing**:
    - Country blocks are ordered according to their **first chronological appearance** in the sheet (e.g., Germany first, then Japan, etc.).
    - This ensures top-level layout continuity and prevents disruptions to ongoing outreach campaigns.
 
@@ -60,29 +62,35 @@ The table below defines the exact column ordering that must be preserved:
 
 ---
 
-## 3. Stable Grouping Algorithm (Python Reference)
+## 3. Stable Multi-Tier Grouping Algorithm (Python Reference)
 
-When reorganizing the sheet, the following Python logic must be used to ensure stable grouping:
+When reorganizing the sheet, the following Python logic must be used to ensure stable grouping by Country, University, and Department:
 
 ```python
 from collections import OrderedDict
 
-def group_rows_stably_by_country(rows: list, country_col_idx: int = 2) -> list:
+def group_and_sort_sheet_rows(rows: list, country_order: list, country_idx: int = 2, univ_idx: int = 1, dept_idx: int = 3) -> list:
     """
-    Groups tabular rows by country stably:
-    - Country blocks ordered by first appearance in original rows.
-    - Within each country block, original relative order is preserved.
+    Groups tabular rows by Country -> University (A-Z) -> Department/Lab (A-Z):
+    - Country blocks ordered by established sequence (first chronological appearance).
+    - Within each country block, rows are sorted by University (A-Z) and Department/Lab (A-Z).
+    - Within each department, original relative order is preserved.
     """
-    country_groups = OrderedDict()
-    for row in rows:
-        country = row[country_col_idx].strip() if len(row) > country_col_idx else ""
-        if not country:
-            country = "Unspecified"
-        country_groups.setdefault(country, []).append(row)
+    country_groups = OrderedDict((c, []) for c in country_order)
+    for idx, row in enumerate(rows):
+        country = row[country_idx].strip() if len(row) > country_idx else ""
+        if country not in country_groups:
+            country_groups[country] = []
+        country_groups[country].append((idx, row))
 
     reordered = []
-    for country, grouped_rows in country_groups.items():
-        reordered.extend(grouped_rows)
+    for country, indexed_rows in country_groups.items():
+        sorted_rows = sorted(indexed_rows, key=lambda x: (
+            x[1][univ_idx].strip().lower(),  # University A-Z
+            x[1][dept_idx].strip().lower(),  # Department/Lab A-Z
+            x[0]                             # Stable relative order
+        ))
+        reordered.extend([x[1] for x in sorted_rows])
     return reordered
 ```
 
