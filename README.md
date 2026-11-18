@@ -207,6 +207,47 @@ python manage.py draft_next --country Japan --start-row 178 --limit 2
 
 ---
 
+## ⏰ Automated Scheduled Outreach Dispatcher (`send_approved`)
+
+The `send_approved` management command reads approved email drafts from your Google Sheet, resolves each professor's university timezone, schedules dispatch to hit their inbox right at the start of their local workday (default: **8:30 AM local time**), and staggers same-region emails by **2 minutes** to maintain deliverability and protect Gmail sender reputation.
+
+### Usage Examples
+
+1. **Preview Calculated Schedule Timetable**:
+   ```bash
+   # Preview schedule for approved professors in default sheet:
+   python manage.py send_approved --schedule-plan
+
+   # Preview schedule for newly staged candidates in SearchProf:
+   python manage.py send_approved --worksheet "SearchProf" --schedule-plan --status "Needs Review"
+   ```
+
+2. **Dry-Run Simulation**:
+   ```bash
+   python manage.py send_approved --worksheet "SearchProf" --schedule --dry-run
+   ```
+
+3. **Live Automated Scheduled Dispatch Daemon**:
+   ```bash
+   python manage.py send_approved --worksheet "SearchProf" --schedule
+   ```
+
+### Scheduling Options Reference
+
+| Option | Description | Default |
+| :--- | :--- | :--- |
+| `--schedule` | Run sleep-and-dispatch daemon matching university local workday start time | `False` |
+| `--schedule-plan` | Preview calculated timetable without dispatching emails | `False` |
+| `--start-time <HH:MM>` | Target university local workday start time | `08:30` |
+| `--gap-minutes <INT>` | Stagger gap between consecutive emails in the same region | `2` |
+| `--status <STATUS>` | Filter rows by status (`Approved`, `Needs Review`, `all`) | `Approved` |
+| `--worksheet <NAME>` | Target Google Sheet worksheet/tab | `Professors List` |
+| `--attachments-dir <DIR>` | Directory containing resume and transcripts | `attachments` |
+| `--signature-file <FILE>` | Text signature file path | `signature.txt` |
+| `--dry-run` | Simulate dispatch without sending emails or updating sheet | `False` |
+
+---
+
 ## 🔒 Concurrency & Group Locking Explained
 
 To maintain academic etiquette and prevent awkward situations where two professors in the same department receive simultaneous cold emails from the same applicant, the agent enforces concurrency locking:
@@ -225,7 +266,8 @@ profemail/
 ├── core/
 │   └── management/
 │       └── commands/
-│           └── draft_next.py         # Main agent logic (Fetch -> Lock -> Scrape -> LLM -> Writeback)
+│           ├── draft_next.py         # Main agent logic (Fetch -> Lock -> Scrape -> LLM -> Writeback)
+│           └── send_approved.py      # Timezone-aware email scheduler and Gmail dispatcher
 ├── outreach_system/                  # Django project configuration & settings
 │   ├── settings.py                   # Environment variable loading & app settings
 │   ├── urls.py
@@ -233,6 +275,7 @@ profemail/
 ├── attachments/                      # Folder to store your CV, Resume, and Transcripts
 ├── PROFILE_INSTRUCTIONS.md           # Persistent candidate profile, research expertise & rules
 ├── WORKFLOW_INSTRUCTIONS.md          # Standard operating procedure & development workflow
+├── SEARCH_PROF_INSTRUCTIONS.md       # SOP for Google Search discovery & staging in SearchProf sheet
 ├── .env.example                      # Template environment variables
 ├── requirements.txt                  # Python dependencies
 ├── credentials.json                  # Google Cloud Service Account JSON key (gitignored)
