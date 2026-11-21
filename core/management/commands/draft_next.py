@@ -195,11 +195,13 @@ class Command(BaseCommand):
         group_col = find_key(["Contact Group (Lock)", "Contact Group", "Group", "Lock"])
         status_col = find_key(["Pipeline Status", "Status", "Pipeline"])
         priority_col = find_key(["Priority"])
-        scholar_col = find_key(["Google Scholar URL", "Scholar URL", "Google Scholar", "Profile URL", "Professor Profile URL"])
+        scholar_col = find_key(["Google Scholar URL", "Scholar URL", "Google Scholar", "Profile URL", "Professor Profile URL", "Google Scholar / Profile URL"])
         name_col = find_key(["Professor Name", "Name"])
         summary_col = find_key(["LLM Research Summary", "Research Summary", "Summary"])
         draft_col = find_key(["Email Draft", "LLM Draft Email", "Draft Email"])
         country_col = find_key(["Country", "Nation", "Location"])
+        post_text_col = find_key(["Post Text", "Raw Post Text", "Post Content", "Announcement Text"])
+        notes_col = find_key(["Notes", "Remarks", "Comments"])
 
         if not group_col or not status_col:
             self.stderr.write(
@@ -398,39 +400,71 @@ class Command(BaseCommand):
             opt_intake = options.get("intake")
             target_intake = opt_intake or "Spring/Fall 2027"
 
+            post_text = str(selected_record.get(post_text_col, "")).strip() if post_text_col else ""
+            notes_text = str(selected_record.get(notes_col, "")).strip() if notes_col else ""
+
+            ws_name_lower = str(options.get("worksheet") or getattr(worksheet, "title", "")).lower()
+            candidate_is_recruitment = bool("searchprof" in ws_name_lower or post_text)
+
             # -------------------------------------------------------------
             # 4. LLM Integration (Drafting the Email)
             # -------------------------------------------------------------
-            self.stdout.write(f"Generating research summary, fit score, and {target_degree} email draft via LLM...")
-            summary, email_draft, fit_score, research_topic = self._generate_llm_content(
+            mode_desc = "active recruitment call response" if candidate_is_recruitment else "cold outreach"
+            self.stdout.write(f"Generating research summary, fit score, and {target_degree} email draft via LLM ({mode_desc})...")
+            summary, email_draft, fit_score, research_topic, parsed_subject = self._generate_llm_content(
                 professor_name=selected_name,
                 selected_record=selected_record,
                 scraped_data=scraped_data,
                 target_intake=target_intake,
                 target_degree=target_degree,
+                post_text=post_text,
+                notes_text=notes_text,
+                is_recruitment_call=candidate_is_recruitment,
             )
 
-            if not research_topic:
-                raw_area = str(selected_record.get("Research Area", "")).strip()
-                if raw_area:
-                    first_area = re.split(r"[,;/|]", raw_area)[0].strip()
-                    research_topic = first_area if len(first_area.split()) <= 6 else " ".join(first_area.split()[:5])
+            if parsed_subject:
+                email_subject = parsed_subject
+            else:
+                if not research_topic:
+                    raw_area = str(selected_record.get("Research Area", "")).strip()
+                    if raw_area:
+                        first_area = re.split(r"[,;/|]", raw_area)[0].strip()
+                        research_topic = first_area if len(first_area.split()) <= 6 else " ".join(first_area.split()[:5])
+                    else:
+                        research_topic = "Reliable AI-Driven Software Engineering"
+
+                if candidate_is_recruitment:
+                    email_subject = f"Prospective {target_degree} Applicant ({target_intake}) – {research_topic} – Forhad Uddin Ahmed"
                 else:
-                    research_topic = "Reliable AI-Driven Software Engineering"
+                    email_subject = f"Exploring {target_degree} Research on {research_topic} – Forhad Uddin Ahmed"
 
-            email_subject = f"Exploring {target_degree} Research on {research_topic} – Forhad Uddin Ahmed"
+            draft_body = email_draft
+            if draft_body.strip().lower().startswith("subject:"):
+                lines = draft_body.strip().split("\n")
+                if not parsed_subject and len(lines) > 0:
+                    extracted_subj = lines[0].split(":", 1)[1].strip()
+                    if extracted_subj:
+                        email_subject = extracted_subj
+                draft_body = "\n".join(lines[1:]).strip()
 
-            word_count = len(email_draft.split())
+            word_count = len(draft_body.split())
             if word_count > 110:
                 self.stdout.write(self.style.WARNING(f"Draft has {word_count} words (>110). Auto-shortening to ~100 words..."))
-                email_draft = self._shorten_email_draft(email_draft, max_words=105)
-                word_count = len(email_draft.split())
+                draft_body = self._shorten_email_draft(draft_body, max_words=105, is_recruitment_call=candidate_is_recruitment)
+                word_count = len(draft_body.split())
 
+            # If worksheet has no dedicated Email Subject column (like SearchProf), prepend Subject to the draft cell
+            if not col_subject_idx:
+                sheet_draft_content = f"Subject: {email_subject}\n\n{draft_body}"
+            else:
+                sheet_draft_content = draft_body
+
+            self.stdout.write(self.style.SUCCESS(f"--- Generated Subject: {email_subject} ---"))
             self.stdout.write(self.style.SUCCESS("--- Generated LLM Research Summary ---"))
             self.stdout.write(summary)
             self.stdout.write(self.style.SUCCESS(f"--- Generated Fit Score: {fit_score}/10 ---"))
             self.stdout.write(self.style.SUCCESS(f"--- Generated Email Draft (Word Count: {word_count}) ---"))
-            self.stdout.write(email_draft)
+            self.stdout.write(draft_body)
 
             # -------------------------------------------------------------
             # 5. Sheet Update
@@ -446,7 +480,7 @@ class Command(BaseCommand):
                 if col_draft_idx:
                     updates.append({
                         "range": gspread.utils.rowcol_to_a1(selected_row, col_draft_idx),
-                        "values": [[email_draft]],
+                        "values": [[sheet_draft_content]],
                     })
                 if col_status_idx:
                     updates.append({
@@ -614,7 +648,7 @@ class Command(BaseCommand):
 
         return "\n".join(extracted) if extracted else "No publication data available."
 
-    def _shorten_email_draft(self, draft: str, max_words: int = 105) -> str:
+    def _shorten_email_draft(self, draft: str, max_words: int = 105, is_recruitment_call: bool = False) -> str:
         """Auto-shortens email draft via LLM to guarantee word count <= 110 words (~100 words)."""
         api_key = os.getenv("GEMINI_API_KEY") or getattr(settings, "GEMINI_API_KEY", "")
         model_name = os.getenv("GEMINI_MODEL") or getattr(settings, "GEMINI_MODEL", "gemini-3.5-flash-lite")
@@ -622,13 +656,20 @@ class Command(BaseCommand):
             try:
                 from google import genai
                 client = genai.Client(api_key=api_key)
+
+                closing_rule = (
+                    "- Retain confident statement of interest in the advertised graduate opening (Spring/Fall 2027) and request to discuss fit.\n"
+                    if is_recruitment_call
+                    else "- Retain polite graduate availability inquiry (Spring/Fall 2027).\n"
+                )
+
                 prompt = (
                     f"Shorten this graduate outreach email draft so that its total word count is around 95-105 words (strictly under {max_words} words).\n"
                     f"CRITICAL REQUIREMENTS:\n"
                     f"- Retain formal salutation using the professor's full name.\n"
                     f"- Retain applicant positioning as 'AI/ML Researcher and Software Engineer' (DO NOT change identity).\n"
                     f"- Retain cited recent publications and genuine technical bridge.\n"
-                    f"- Retain polite graduate availability inquiry (Spring/Fall 2027).\n"
+                    f"{closing_rule}"
                     f"- Retain explicit mention that both resume and academic transcript are attached.\n"
                     f"- Do NOT include any closing sign-off or name (e.g., do NOT include 'Sincerely,' or 'Forhad Uddin Ahmed') as the signature is automatically appended separately.\n"
                     f"- Omit pleasantry fillers ('I hope this email finds you well', 'Thank you very much for your time and consideration').\n"
@@ -667,13 +708,17 @@ class Command(BaseCommand):
         scraped_data: str,
         target_intake: str = "Spring/Fall 2027",
         target_degree: str = "PhD",
-    ) -> Tuple[str, str, int, str]:
+        post_text: str = "",
+        notes_text: str = "",
+        is_recruitment_call: bool = False,
+    ) -> Tuple[str, str, int, str, str]:
         """
         Uses google-generativeai / google.genai / OpenAI to generate:
           a) LLM Research Summary
           b) Email Draft (max 150 words)
           c) LLM Fit Score (1-10)
           d) Research Topic (3-6 words)
+          e) Email Subject (tailored line)
         """
         api_key = (
             os.getenv("GEMINI_API_KEY")
@@ -687,15 +732,6 @@ class Command(BaseCommand):
         if os.path.exists(profile_instructions_path):
             with open(profile_instructions_path, "r", encoding="utf-8") as f:
                 profile_instructions_text = f.read()
-
-        if target_degree == "PhD":
-            degree_inquiry_rule = (
-                f'Respectfully ask about funded {target_intake} PhD availability near the end ("Do you expect to have funded PhD opportunities with a GRA or TA for {target_intake}?" or "for the {target_intake} intake?"). Explicitly inquire about funded PhD opportunities with a GRA or TA for {target_intake}, never assume open positions exist. Do NOT include "by research" for PhD.'
-            )
-        else:
-            degree_inquiry_rule = (
-                f'Respectfully ask about funded {target_intake} Master\'s by research availability near the end ("Do you expect to have funded Master\'s by research opportunities with a Graduate Research Assistantship (GRA) for {target_intake}?" or "for the {target_intake} intake?"). Explicitly inquire about funded Master\'s by research opportunities with a Graduate Research Assistantship (GRA) for {target_intake}, never assume open positions exist.'
-            )
 
         # Clean salutation formatting helper
         clean_name = re.sub(r",\s*(Associate\s*Professor|Assistant\s*Professor|Professor|Prof\.|Dr\.|Ts\.).*$", "", professor_name, flags=re.IGNORECASE).strip()
@@ -711,6 +747,45 @@ class Command(BaseCommand):
         else:
             clean_salutation = f"Dear Professor {clean_name},"
 
+        if is_recruitment_call:
+            recruitment_call_block = f"""
+### ACTIVE RECRUITMENT CALL & LAB POSTING:
+The target professor has EXPLICITLY posted an active call/announcement seeking prospective {target_degree} / student researchers:
+- Verbatim Post / Announcement: {post_text or 'The professor recently published a public hiring announcement for student researchers.'}
+- Opportunity & Funding Notes: {notes_text or 'Funded graduate research position.'}
+
+SPECIAL RULES FOR ACTIVE RECRUITMENT RESPONSES:
+1. ACKNOWLEDGE THE RECRUITMENT ANNOUNCEMENT: Do NOT ask speculative questions like "Do you expect to have open positions?" or "Do you have PhD opportunities?". The professor has ALREADY confirmed they have openings!
+2. DIRECT CANDIDACY & INTRO: Open by positioning Forhad as an "AI/ML Researcher and Software Engineer" and directly state his strong interest in their active {target_degree} recruitment opening for {target_intake}. (Never describe him as a current Lecturer).
+3. TARGETED ALIGNMENT: Directly connect Forhad's background (Machine Learning, Explainable AI, Time Series Forecasting, AI-driven Software Engineering, predictive modeling) to the specific requirements, tools, or research problems emphasized in their post (and verified recent 2025/2026 publications).
+4. RESPECTFUL OPPORTUNITY REQUEST: Close with a confident, respectful statement requesting an opportunity to discuss fit (e.g., "I would welcome the opportunity to discuss how my research background aligns with your lab's active projects for {target_intake}. I have attached my resume and academic transcript for your review.").
+5. SUBJECT LINE COMPLIANCE: If the post explicitly requests a specific subject line format or tag (e.g., "[Prospective PhD Student]" or "[International] Prospective MASc Student"), generate an [EMAIL_SUBJECT] that strictly adopts that requested format!
+"""
+            draft_guidance = (
+                f"- **Active Call Opening**: Begin directly by positioning Forhad as an 'AI/ML Researcher and Software Engineer' and referencing their recent recruitment announcement for {target_intake} (e.g., 'I read with great interest your recent announcement regarding {target_degree} openings in your lab for {target_intake} focusing on [Topic/Area]...'). (DO NOT include conversational pleasantries like 'I hope this email finds you well'. DO NOT state that he is currently a Lecturer).\n"
+                f"- **Targeted Alignment with Post**: Directly highlight Forhad's background in ML, Explainable AI, predictive modeling, or software systems that fulfills what the professor specifically asked for in their post in 1–2 crisp, technical sentences (referencing 1 recent 2025/2026 paper).\n"
+                f"- **Candidacy Statement & Attachment**: State his candidacy for the advertised position and request to discuss alignment for {target_intake}. Explicitly state that both his Resume and Academic Transcript are attached for review."
+            )
+        else:
+            if target_degree == "PhD":
+                degree_inquiry_rule = (
+                    f'Respectfully ask about funded {target_intake} PhD availability near the end ("Do you expect to have funded PhD opportunities with a GRA or TA for {target_intake}?" or "for the {target_intake} intake?"). Explicitly inquire about funded PhD opportunities with a GRA or TA for {target_intake}, never assume open positions exist. Do NOT include "by research" for PhD.'
+                )
+            else:
+                degree_inquiry_rule = (
+                    f'Respectfully ask about funded {target_intake} Master\'s by research availability near the end ("Do you expect to have funded Master\'s by research opportunities with a Graduate Research Assistantship (GRA) for {target_intake}?" or "for the {target_intake} intake?"). Explicitly inquire about funded Master\'s by research opportunities with a Graduate Research Assistantship (GRA) for {target_intake}, never assume open positions exist.'
+                )
+            recruitment_call_block = ""
+            draft_guidance = (
+                f"- **Direct Opening**: Begin directly by positioning Forhad as an 'AI/ML Researcher and Software Engineer' with research experience in the relevant area (DO NOT include conversational pleasantries like 'I hope this email finds you well'). (DO NOT state that he is currently a Lecturer. Do NOT state 'I am applying for funded positions' in the opening).\n"
+                f"- **Thoughtful Research Bridge**:\n"
+                f"  - Cite 1–2 verified RECENT papers (strictly prioritizing 2025 and 2026 papers from the scraped data).\n"
+                f"  - Naturally connect Forhad's actual research experience (Explainable AI, Machine Learning, predictive modeling, or software systems) to the professor's specific recent research focus in 1–2 concise sentences.\n"
+                f"- **Respectful Inquiry**:\n"
+                f"  - {degree_inquiry_rule}\n"
+                f"  - Explicitly state that both his **Resume and Academic Transcript** are attached for review (e.g. 'I have attached my resume and academic transcript for your review.'). Do NOT say only 'CV attached'."
+            )
+
         prompt = f"""
 You are assisting Forhad Uddin Ahmed in drafting a highly personalized, polite, and persuasive {target_degree} outreach email to a prospective advisor to maximize the opportunity of securing a funded {target_degree} position or supervision.
 
@@ -724,7 +799,7 @@ You are assisting Forhad Uddin Ahmed in drafting a highly personalized, polite, 
 - Department: {selected_record.get('Department/Lab', selected_record.get('Department', ''))}
 - Known Research Area: {selected_record.get('Research Area', '')}
 - Sheet Publications: {selected_record.get('Recent Publications', '')}
-
+{recruitment_call_block}
 ### SCRAPED SCHOLAR DATA:
 {scraped_data}
 
@@ -743,24 +818,17 @@ You are assisting Forhad Uddin Ahmed in drafting a highly personalized, polite, 
    - 1–2: Very limited overlap.
    *(Do NOT inflate score merely because both work in general AI, ML, or computer science).*
 
-3. **Generate Tailored Research Topic (3-6 words)**:
-   - Identify the primary technical intersection between Forhad's background (Explainable AI, Machine Learning, AI-driven Software Engineering) and the professor's recent publications.
-   - Summarize this intersection in a concise, title-cased 3 to 6 word phrase (e.g., "Reliable AI-Driven Software Engineering", "Explainable AI in Healthcare", "Trustworthy Deep Learning Systems", "Robust Machine Learning and System Security").
-   - Output ONLY the topic phrase. Do NOT include words like "Exploring", "PhD", "Master's", "Research on", or Forhad's name.
+3. **Generate Tailored Research Topic & Email Subject**:
+   - Identify the primary technical intersection between Forhad's background and the professor's recent focus.
+   - Summarize this intersection in a concise, title-cased 3 to 6 word phrase (e.g., "Reliable AI-Driven Software Engineering", "Bayesian Optimization and Agentic Learning").
+   - Generate an [EMAIL_SUBJECT]. If the post requested a specific tag/format, strictly obey it; otherwise format as: `Prospective {target_degree} Applicant ({target_intake}) – <Topic> – Forhad Uddin Ahmed`.
 
 4. **Generate Email Draft (STRICTLY AROUND 100 WORDS, MAXIMUM 110 WORDS)**:
    - **Salutation**: Use formal academic etiquette: `{clean_salutation}` (never duplicate titles like "Dear Professor Prof.").
-   - **Direct Opening**: Begin directly by positioning Forhad as an "AI/ML Researcher and Software Engineer" with research experience in the relevant area (DO NOT include conversational pleasantries like "I hope this email finds you well"). (DO NOT state that he is currently a Lecturer. Do NOT state "I am applying for funded positions" in the opening).
-   - **Thoughtful Research Bridge**:
-     - Cite 1–2 verified RECENT papers (strictly prioritizing 2025 and 2026 papers from the scraped data).
-     - Use respectful, intellectually mature academic phrasing (e.g., "I read with great interest your recent paper...", "I was particularly interested in your work on...").
-     - Naturally connect Forhad's actual research experience (Explainable AI, Machine Learning, predictive modeling, or software systems) to the professor's specific recent research focus in 1–2 concise sentences.
-   - **Respectful, Opportunity-Maximizing Inquiry**:
-     - {degree_inquiry_rule}
-     - Explicitly state that both his **Resume and Academic Transcript** are attached for review (e.g. "I have attached my resume and academic transcript for your review."). Do NOT say only "CV attached".
+   {draft_guidance}
    - **No Sign-off / Signature**:
      - Do NOT include any closing sign-off or name (e.g., do NOT include "Sincerely,", "Best regards,", or "Forhad Uddin Ahmed") at the end of the draft.
-     - End the email immediately after the availability inquiry and attachment mention. The email dispatch system automatically attaches his formal email signature when sending.
+     - End the email immediately after the availability inquiry/candidacy statement and attachment mention. The email dispatch system automatically attaches his formal email signature when sending.
    - **Strict Word Count Constraint**: The total email MUST be between 90 and 105 words (STRICT CEILING: 110 words). Zero filler, 100% technical signal.
 
 ### OUTPUT FORMAT:
@@ -778,8 +846,12 @@ You MUST respond in this exact format:
 <3-6 word research topic here>
 [/RESEARCH_TOPIC]
 
+[EMAIL_SUBJECT]
+<Tailored subject line here>
+[/EMAIL_SUBJECT]
+
 [EMAIL_DRAFT]
-<Your outreach email draft under 150 words here>
+<Your outreach email draft under 110 words here>
 [/EMAIL_DRAFT]
 """
 
@@ -841,14 +913,16 @@ You MUST respond in this exact format:
             scraped_data,
             target_intake=target_intake,
             target_degree=target_degree,
+            is_recruitment_call=is_recruitment_call,
         )
 
-    def _parse_llm_response(self, text: str) -> Tuple[str, str, int, str]:
-        """Extracts summary, email draft, fit score, and research topic from LLM tags."""
+    def _parse_llm_response(self, text: str) -> Tuple[str, str, int, str, str]:
+        """Extracts summary, email draft, fit score, research topic, and email subject from LLM tags."""
         summary = ""
         email_draft = ""
         fit_score = 8
         research_topic = ""
+        email_subject = ""
 
         summary_match = re.search(r"\[RESEARCH_SUMMARY\](.*?)\[/RESEARCH_SUMMARY\]", text, re.DOTALL | re.IGNORECASE)
         if summary_match:
@@ -871,6 +945,11 @@ You MUST respond in this exact format:
             research_topic = re.sub(r"^Exploring\s+(?:PhD|Master'?s)?\s*Research\s*on\s*", "", research_topic, flags=re.IGNORECASE).strip()
             research_topic = re.sub(r"\s*[–—-]\s*Forhad.*$", "", research_topic, flags=re.IGNORECASE).strip()
 
+        subject_match = re.search(r"\[EMAIL_SUBJECT\](.*?)\[/EMAIL_SUBJECT\]", text, re.DOTALL | re.IGNORECASE)
+        if subject_match:
+            email_subject = subject_match.group(1).strip()
+            email_subject = re.sub(r'^["\'`]+|["\'`]+$', '', email_subject).strip()
+
         draft_match = re.search(r"\[EMAIL_DRAFT\](.*?)\[/EMAIL_DRAFT\]", text, re.DOTALL | re.IGNORECASE)
         if draft_match:
             email_draft = draft_match.group(1).strip()
@@ -887,11 +966,15 @@ You MUST respond in this exact format:
 
         # Clean email_draft: remove accidental Subject line or markdown fences
         if email_draft:
-            email_draft = re.sub(r"^Subject:.*?\n+", "", email_draft, flags=re.IGNORECASE).strip()
+            lines = email_draft.splitlines()
+            if lines and lines[0].strip().lower().startswith("subject:"):
+                if not email_subject:
+                    email_subject = lines[0].split(":", 1)[1].strip()
+                email_draft = "\n".join(lines[1:]).strip()
             email_draft = re.sub(r"^```(?:markdown|text)?\n?", "", email_draft).strip()
             email_draft = re.sub(r"\n?```$", "", email_draft).strip()
 
-        return summary, email_draft, fit_score, research_topic
+        return summary, email_draft, fit_score, research_topic, email_subject
 
     def _generate_deterministic_content(
         self,
@@ -900,7 +983,8 @@ You MUST respond in this exact format:
         scraped_data: str,
         target_intake: str = "Spring/Fall 2027",
         target_degree: str = "PhD",
-    ) -> Tuple[str, str, int, str]:
+        is_recruitment_call: bool = False,
+    ) -> Tuple[str, str, int, str, str]:
         """High quality deterministic fallback conforming to the prompt specification."""
         full_name = professor_name.strip() if professor_name else "Professor"
         if full_name.lower().startswith("prof") or full_name.lower().startswith("dr"):
@@ -990,19 +1074,31 @@ You MUST respond in this exact format:
                 f"models and scalable pipelines would allow me to contribute effectively to your lab."
             )
 
-        if target_degree == "PhD":
-            closing_question = f"Do you expect to have funded PhD opportunities with a GRA or TA for {target_intake}?"
+        if is_recruitment_call:
+            email_subject = f"Prospective {target_degree} Applicant ({target_intake}) – {research_topic} – Forhad Uddin Ahmed"
+            email_draft = (
+                f"{salutation}\n\n"
+                f"I am Forhad Uddin Ahmed, an AI/ML Researcher and Software Engineer with research experience in machine learning and "
+                f"predictive modeling. I read with great interest your recent recruitment announcement regarding funded {target_degree} "
+                f"openings in your lab and your work at {univ}, particularly '{featured_paper}'.\n\n"
+                f"{research_bridge}\n\n"
+                f"I would welcome the opportunity to discuss how my research background aligns with your lab's active projects for {target_intake}. "
+                f"I have attached my resume and academic transcript for your review."
+            )
         else:
-            closing_question = f"Do you expect to have funded Master's by research opportunities with a Graduate Research Assistantship (GRA) for {target_intake}?"
+            if target_degree == "PhD":
+                closing_question = f"Do you expect to have funded PhD opportunities with a GRA or TA for {target_intake}?"
+            else:
+                closing_question = f"Do you expect to have funded Master's by research opportunities with a Graduate Research Assistantship (GRA) for {target_intake}?"
 
-        email_draft = (
-            f"{salutation}\n\n"
-            f"I hope this email finds you well. I am Forhad Uddin Ahmed, an AI/ML Researcher and Software Engineer "
-            f"with peer-reviewed research experience in machine learning and explainable AI. I have been following "
-            f"your lab's work at {univ}, particularly your recent paper '{featured_paper}'.\n\n"
-            f"{research_bridge}\n\n"
-            f"{closing_question} I would welcome the opportunity to discuss "
-            f"potential alignment if your schedule permits. I have attached my resume and academic transcript for your review."
-        )
+            email_subject = f"Exploring {target_degree} Research on {research_topic} – Forhad Uddin Ahmed"
+            email_draft = (
+                f"{salutation}\n\n"
+                f"I am Forhad Uddin Ahmed, an AI/ML Researcher and Software Engineer with research experience in machine learning and "
+                f"predictive modeling. I have been following your lab's work at {univ}, particularly your recent paper '{featured_paper}'.\n\n"
+                f"{research_bridge}\n\n"
+                f"{closing_question} I would welcome the opportunity to discuss "
+                f"potential alignment if your schedule permits. I have attached my resume and academic transcript for your review."
+            )
 
-        return summary, email_draft, fit_score, research_topic
+        return summary, email_draft, fit_score, research_topic, email_subject
