@@ -328,11 +328,17 @@ class Command(BaseCommand):
                 country = row[country_col_idx].strip() if (country_col_idx >= 0 and len(row) > country_col_idx) else ""
                 tz_hint = row[tz_col_idx].strip() if (tz_col_idx >= 0 and len(row) > tz_col_idx) else ""
 
-                # Auto-generate subject if missing
+                # Auto-generate subject if missing, or extract from draft if prepended
                 if not subject:
-                    is_usa = country.lower().strip() in ["usa", "us", "united states"]
-                    degree_str = "PhD" if is_usa else "Master's"
-                    subject = f"Exploring {degree_str} Research Opportunities – Forhad Uddin Ahmed"
+                    lines = [ln.strip() for ln in draft.splitlines() if ln.strip()]
+                    if lines and lines[0].lower().startswith("subject:"):
+                        subject = lines[0].split(":", 1)[1].strip()
+                        # Clean draft body so "Subject: ..." is not in the email body
+                        draft = "\n\n".join(lines[1:]).strip()
+                    else:
+                        is_usa = country.lower().strip() in ["usa", "us", "united states"]
+                        degree_str = "PhD" if is_usa else "Master's"
+                        subject = f"Exploring {degree_str} Research Opportunities – Forhad Uddin Ahmed"
 
                 approved_candidates.append({
                     "row_num": sheet_row_num,
