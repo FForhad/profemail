@@ -13,7 +13,7 @@ This document defines the procedure for discovering prospective professors via w
 
 ---
 
-## 2. Spreadsheet Schema (11 Columns)
+## 2. Spreadsheet Schema (12 Columns)
 
 The **`SearchProf`** sheet is organized with the following streamlined headers:
 
@@ -29,7 +29,8 @@ The **`SearchProf`** sheet is organized with the following streamlined headers:
 | **H** | `Post Age (Days)` | **Yes** | **Strictly < 7 Days**. Number of days since the recruitment announcement was published. |
 | **I** | `Email Draft` | Auto / Manual | Generated outreach email draft ($\le 150$ words, strictly adhering to academic constraints). |
 | **J** | `Status` | **Yes** | Staging status: `Pending`, `Needs Review`, `Approved`, `Promoted`, or `Discarded`. |
-| **K** | `Notes` | Optional | Funding breakdown, intake semester, and original LinkedIn post link. |
+| **K** | `Notes` | Optional | Funding breakdown, intake semester, and application remarks. |
+| **L** | `Post Text` | **Yes** | Verbatim text of the recruitment announcement/hiring post from the professor. |
 
 ---
 
@@ -75,7 +76,8 @@ For every LinkedIn post discovered:
    * Add Professor Name, University, Department, Contact Group Lock.
    * Add the prioritized email and profile URL.
    * Set `Post Age (Days)` to the exact days count ($< 7$).
-   * In `Notes`, paste the original LinkedIn post link, funding details, and application remarks.
+   * In `Notes`, record funding details, intake semester, and application remarks.
+   * In `Post Text` (Column L), paste the exact verbatim text of the hiring announcement.
    * Set `Status` to `Pending`.
 
 1. **Department Concurrency Lock**:
