@@ -26,7 +26,7 @@ Follow this document strictly from Step 1 through Step 7.
 
 - `GEMINI_API_KEY`: Active Google Gemini API key.
 
-- `GEMINI_MODEL`: Active model (`gemini-3.6-flash`).
+- `GEMINI_MODEL`: Active model (`gemini-3.8-flash`).
 
 2. ****Verify `credentials.json`****:
 
@@ -132,7 +132,7 @@ Follow this document strictly from Step 1 through Step 7.
 
 - Scraped research interests/interests, when available.
 
-2. Call `client.models.generate_content` with `model="gemini-3.6-flash"`.
+2. Call `client.models.generate_content` with `model="gemini-3.8-flash"`.
 
 3. Require the model to produce:
 
