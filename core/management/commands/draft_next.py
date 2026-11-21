@@ -376,145 +376,168 @@ class Command(BaseCommand):
             )
 
             # -------------------------------------------------------------
-            # 3. Scraping
+            # Per-candidate execution with timeout & error recovery
             # -------------------------------------------------------------
-            scholar_url = str(selected_record.get(scholar_col, "")).strip() if scholar_col else ""
-            if not scholar_url:
-                for k in ["Profile URL", "Professor Profile URL", "Lab / University Website URL", "Lab Website URL"]:
-                    val = str(selected_record.get(k, "")).strip()
-                    if "scholar.google" in val.lower():
-                        scholar_url = val
-                        break
-                    elif not scholar_url and val.startswith("http"):
-                        scholar_url = val
+            from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 
-            self.stdout.write(f"Target URL for scraping: {scholar_url or 'None provided'}")
-            scraped_data = self._scrape_scholar(scholar_url, professor_name=selected_name)
-            self.stdout.write(f"Scraped summary length: {len(scraped_data)} chars.")
+            current_phase = ["Initializing"]
 
-            rec_country = str(selected_record.get(country_col or "Country", "")).strip().lower()
-            is_usa = rec_country in ["usa", "us", "united states"] or bool(
-                country_filter and country_filter.lower() in ["usa", "us", "united states"]
-            )
-            target_degree = "PhD" if is_usa else "Master's"
-            opt_intake = options.get("intake")
-            target_intake = opt_intake or "Spring/Fall 2027"
+            def _compute_candidate_draft(c_row, c_name, c_record, c_group):
+                # 3. Scraping
+                current_phase[0] = "Determining target URL"
+                scholar_url = str(c_record.get(scholar_col, "")).strip() if scholar_col else ""
+                if not scholar_url:
+                    for k in ["Profile URL", "Professor Profile URL", "Lab / University Website URL", "Lab Website URL"]:
+                        val = str(c_record.get(k, "")).strip()
+                        if "scholar.google" in val.lower():
+                            scholar_url = val
+                            break
+                        elif not scholar_url and val.startswith("http"):
+                            scholar_url = val
 
-            post_text = str(selected_record.get(post_text_col, "")).strip() if post_text_col else ""
-            notes_text = str(selected_record.get(notes_col, "")).strip() if notes_col else ""
+                self.stdout.write(f"Target URL for scraping: {scholar_url or 'None provided'}")
+                current_phase[0] = f"Scraping publications ({scholar_url[:60] if scholar_url else 'None'})"
+                scraped_data = self._scrape_scholar(scholar_url, professor_name=c_name)
+                self.stdout.write(f"Scraped summary length: {len(scraped_data)} chars.")
 
-            ws_name_lower = str(options.get("worksheet") or getattr(worksheet, "title", "")).lower()
-            candidate_is_recruitment = bool("searchprof" in ws_name_lower or post_text)
+                rec_country = str(c_record.get(country_col or "Country", "")).strip().lower()
+                is_usa = rec_country in ["usa", "us", "united states"] or bool(
+                    country_filter and country_filter.lower() in ["usa", "us", "united states"]
+                )
+                target_degree = "PhD" if is_usa else "Master's"
+                opt_intake = options.get("intake")
+                target_intake = opt_intake or "Spring/Fall 2027"
 
-            # -------------------------------------------------------------
-            # 4. LLM Integration (Drafting the Email)
-            # -------------------------------------------------------------
-            mode_desc = "active recruitment call response" if candidate_is_recruitment else "cold outreach"
-            self.stdout.write(f"Generating research summary, fit score, and {target_degree} email draft via LLM ({mode_desc})...")
-            summary, email_draft, fit_score, research_topic, parsed_subject = self._generate_llm_content(
-                professor_name=selected_name,
-                selected_record=selected_record,
-                scraped_data=scraped_data,
-                target_intake=target_intake,
-                target_degree=target_degree,
-                post_text=post_text,
-                notes_text=notes_text,
-                is_recruitment_call=candidate_is_recruitment,
-            )
+                post_text = str(c_record.get(post_text_col, "")).strip() if post_text_col else ""
+                notes_text = str(c_record.get(notes_col, "")).strip() if notes_col else ""
 
-            if parsed_subject:
-                email_subject = parsed_subject
-            else:
-                if not research_topic:
-                    raw_area = str(selected_record.get("Research Area", "")).strip()
-                    if raw_area:
-                        first_area = re.split(r"[,;/|]", raw_area)[0].strip()
-                        research_topic = first_area if len(first_area.split()) <= 6 else " ".join(first_area.split()[:5])
+                ws_name_lower = str(options.get("worksheet") or getattr(worksheet, "title", "")).lower()
+                candidate_is_recruitment = bool("searchprof" in ws_name_lower or post_text)
+
+                # 4. LLM Integration
+                mode_desc = "active recruitment call response" if candidate_is_recruitment else "cold outreach"
+                self.stdout.write(f"Generating research summary, fit score, and {target_degree} email draft via LLM ({mode_desc})...")
+                current_phase[0] = f"Generating LLM research summary & email draft ({mode_desc})"
+                summary, email_draft, fit_score, research_topic, parsed_subject = self._generate_llm_content(
+                    professor_name=c_name,
+                    selected_record=c_record,
+                    scraped_data=scraped_data,
+                    target_intake=target_intake,
+                    target_degree=target_degree,
+                    post_text=post_text,
+                    notes_text=notes_text,
+                    is_recruitment_call=candidate_is_recruitment,
+                )
+
+                if parsed_subject:
+                    email_subject = parsed_subject
+                else:
+                    if not research_topic:
+                        raw_area = str(c_record.get("Research Area", "")).strip()
+                        if raw_area:
+                            first_area = re.split(r"[,;/|]", raw_area)[0].strip()
+                            research_topic = first_area if len(first_area.split()) <= 6 else " ".join(first_area.split()[:5])
+                        else:
+                            research_topic = "Reliable AI-Driven Software Engineering"
+
+                    if candidate_is_recruitment:
+                        email_subject = f"Prospective {target_degree} Applicant ({target_intake}) – {research_topic} – Forhad Uddin Ahmed"
                     else:
-                        research_topic = "Reliable AI-Driven Software Engineering"
+                        email_subject = f"Exploring {target_degree} Research on {research_topic} – Forhad Uddin Ahmed"
 
-                if candidate_is_recruitment:
-                    email_subject = f"Prospective {target_degree} Applicant ({target_intake}) – {research_topic} – Forhad Uddin Ahmed"
-                else:
-                    email_subject = f"Exploring {target_degree} Research on {research_topic} – Forhad Uddin Ahmed"
+                draft_body = email_draft
+                if draft_body.strip().lower().startswith("subject:"):
+                    lines = draft_body.strip().split("\n")
+                    if not parsed_subject and len(lines) > 0:
+                        extracted_subj = lines[0].split(":", 1)[1].strip()
+                        if extracted_subj:
+                            email_subject = extracted_subj
+                    draft_body = "\n".join(lines[1:]).strip()
 
-            draft_body = email_draft
-            if draft_body.strip().lower().startswith("subject:"):
-                lines = draft_body.strip().split("\n")
-                if not parsed_subject and len(lines) > 0:
-                    extracted_subj = lines[0].split(":", 1)[1].strip()
-                    if extracted_subj:
-                        email_subject = extracted_subj
-                draft_body = "\n".join(lines[1:]).strip()
-
-            word_count = len(draft_body.split())
-            if word_count > 110:
-                self.stdout.write(self.style.WARNING(f"Draft has {word_count} words (>110). Auto-shortening to ~100 words..."))
-                draft_body = self._shorten_email_draft(draft_body, max_words=105, is_recruitment_call=candidate_is_recruitment)
                 word_count = len(draft_body.split())
+                if word_count > 110:
+                    self.stdout.write(self.style.WARNING(f"Draft has {word_count} words (>110). Auto-shortening to ~100 words..."))
+                    current_phase[0] = "Auto-shortening email draft"
+                    draft_body = self._shorten_email_draft(draft_body, max_words=105, is_recruitment_call=candidate_is_recruitment)
+                    word_count = len(draft_body.split())
 
-            # If worksheet has no dedicated Email Subject column (like SearchProf), prepend Subject to the draft cell
-            if not col_subject_idx:
-                sheet_draft_content = f"Subject: {email_subject}\n\n{draft_body}"
-            else:
-                sheet_draft_content = draft_body
-
-            self.stdout.write(self.style.SUCCESS(f"--- Generated Subject: {email_subject} ---"))
-            self.stdout.write(self.style.SUCCESS("--- Generated LLM Research Summary ---"))
-            self.stdout.write(summary)
-            self.stdout.write(self.style.SUCCESS(f"--- Generated Fit Score: {fit_score}/10 ---"))
-            self.stdout.write(self.style.SUCCESS(f"--- Generated Email Draft (Word Count: {word_count}) ---"))
-            self.stdout.write(draft_body)
-
-            # -------------------------------------------------------------
-            # 5. Sheet Update
-            # -------------------------------------------------------------
-            self.stdout.write(f"Updating Google Sheet row {selected_row}...")
-            try:
-                updates = []
-                if col_summary_idx:
-                    updates.append({
-                        "range": gspread.utils.rowcol_to_a1(selected_row, col_summary_idx),
-                        "values": [[summary]],
-                    })
-                if col_draft_idx:
-                    updates.append({
-                        "range": gspread.utils.rowcol_to_a1(selected_row, col_draft_idx),
-                        "values": [[sheet_draft_content]],
-                    })
-                if col_status_idx:
-                    updates.append({
-                        "range": gspread.utils.rowcol_to_a1(selected_row, col_status_idx),
-                        "values": [["Needs Review"]],
-                    })
-                if col_subject_idx:
-                    updates.append({
-                        "range": gspread.utils.rowcol_to_a1(selected_row, col_subject_idx),
-                        "values": [[email_subject]],
-                    })
-                if col_fit_idx:
-                    updates.append({
-                        "range": gspread.utils.rowcol_to_a1(selected_row, col_fit_idx),
-                        "values": [[fit_score]],
-                    })
-
-                if updates:
-                    worksheet.batch_update(updates)
-                    self.stdout.write(
-                        self.style.SUCCESS(
-                            f"Successfully updated row {selected_row} for '{selected_name}': "
-                            f"Status -> 'Needs Review', Summary & Draft updated in Google Sheet."
-                        )
-                    )
-                    # Immediately lock this group for any remaining candidates in this batch
-                    if selected_group:
-                        locked_groups.add(selected_group)
-                    processed_count += 1
-                    time.sleep(1.5)
+                if not col_subject_idx:
+                    sheet_draft_content = f"Subject: {email_subject}\n\n{draft_body}"
                 else:
-                    self.stderr.write(self.style.ERROR("No valid columns found to update in Google Sheet."))
+                    sheet_draft_content = draft_body
+
+                self.stdout.write(self.style.SUCCESS(f"--- Generated Subject: {email_subject} ---"))
+                self.stdout.write(self.style.SUCCESS("--- Generated LLM Research Summary ---"))
+                self.stdout.write(summary)
+                self.stdout.write(self.style.SUCCESS(f"--- Generated Fit Score: {fit_score}/10 ---"))
+                self.stdout.write(self.style.SUCCESS(f"--- Generated Email Draft (Word Count: {word_count}) ---"))
+                self.stdout.write(draft_body)
+
+                return summary, sheet_draft_content, email_subject, fit_score
+
+            executor = ThreadPoolExecutor(max_workers=1)
+            future = executor.submit(_compute_candidate_draft, selected_row, selected_name, selected_record, selected_group)
+            try:
+                result = future.result(timeout=35)
+                executor.shutdown(wait=False, cancel_futures=True)
+                if result:
+                    summary, sheet_draft_content, email_subject, fit_score = result
+                    self.stdout.write(f"Updating Google Sheet row {selected_row} for '{selected_name}'...")
+                    updates = []
+                    if col_summary_idx:
+                        updates.append({
+                            "range": gspread.utils.rowcol_to_a1(selected_row, col_summary_idx),
+                            "values": [[summary]],
+                        })
+                    if col_draft_idx:
+                        updates.append({
+                            "range": gspread.utils.rowcol_to_a1(selected_row, col_draft_idx),
+                            "values": [[sheet_draft_content]],
+                        })
+                    if col_status_idx:
+                        updates.append({
+                            "range": gspread.utils.rowcol_to_a1(selected_row, col_status_idx),
+                            "values": [["Needs Review"]],
+                        })
+                    if col_subject_idx:
+                        updates.append({
+                            "range": gspread.utils.rowcol_to_a1(selected_row, col_subject_idx),
+                            "values": [[email_subject]],
+                        })
+                    if col_fit_idx:
+                        updates.append({
+                            "range": gspread.utils.rowcol_to_a1(selected_row, col_fit_idx),
+                            "values": [[fit_score]],
+                        })
+
+                    if updates:
+                        worksheet.batch_update(updates)
+                        self.stdout.write(
+                            self.style.SUCCESS(
+                                f"Successfully updated row {selected_row} for '{selected_name}': "
+                                f"Status -> 'Needs Review', Summary & Draft updated in Google Sheet."
+                            )
+                        )
+                        if selected_group:
+                            locked_groups.add(selected_group)
+                        processed_count += 1
+                        time.sleep(1.0)
+            except FutureTimeoutError:
+                executor.shutdown(wait=False, cancel_futures=True)
+                cause_desc = f"Operation exceeded 35s timeout (stalled during: {current_phase[0]})"
+                self.stdout.write(self.style.ERROR(
+                    f"\n[TIMEOUT] Cause for '{selected_name}' (Row {selected_row}): {cause_desc}.\n"
+                    f"Skipping this item and moving to the next professor..."
+                ))
+                continue
             except Exception as exc:
-                self.stderr.write(self.style.ERROR(f"Failed to update Google Sheet row: {exc}"))
+                executor.shutdown(wait=False, cancel_futures=True)
+                cause_desc = f"{type(exc).__name__}: {exc} (during: {current_phase[0]})"
+                self.stdout.write(self.style.ERROR(
+                    f"\n[ERROR] Cause for '{selected_name}' (Row {selected_row}): {cause_desc}.\n"
+                    f"Skipping this item and moving to the next professor..."
+                ))
+                continue
 
         self.stdout.write(
             self.style.SUCCESS(f"\nFinished processing {processed_count} professor(s) successfully.")
@@ -540,7 +563,7 @@ class Command(BaseCommand):
                 r = requests.get(
                     f"https://api.semanticscholar.org/graph/v1/author/search?query={q}&fields=name,papers.title,papers.year",
                     headers={"User-Agent": "Mozilla/5.0"},
-                    timeout=10,
+                    timeout=5,
                 )
                 if r.status_code == 200:
                     data = r.json()
@@ -598,7 +621,7 @@ class Command(BaseCommand):
             }
 
             try:
-                response = requests.get(url, headers=headers, timeout=12)
+                response = requests.get(url, headers=headers, timeout=6)
                 if response.status_code == 200:
                     soup = BeautifulSoup(response.content, "html.parser")
                     for tag in soup(["script", "style", "nav", "footer", "header", "noscript", "svg"]):
@@ -679,7 +702,9 @@ class Command(BaseCommand):
                 shorten_models = [
                     model_name or "gemini-3.5-flash-lite",
                     "gemini-3.5-flash-lite",
-                    "gemini-3.6-flash",
+                    "gemini-flash-lite-latest",
+                    "gemini-3.1-flash-lite",
+                    "gemini-3.8-flash",
                 ]
                 for sm in shorten_models:
                     try:
@@ -694,9 +719,8 @@ class Command(BaseCommand):
                             if len(shortened.split()) <= 150:
                                 return shortened
                     except Exception as err:
-                        if "429" in str(err) or "RESOURCE_EXHAUSTED" in str(err) or "503" in str(err):
-                            continue
-                        break
+                        logger.warning(f"Error shortening draft with {sm}: {err}")
+                        continue
             except Exception as e:
                 logger.warning(f"Error auto-shortening email draft: {e}")
         return draft
@@ -858,9 +882,11 @@ You MUST respond in this exact format:
         # 1. Try google.genai (official new SDK)
         if api_key:
             candidate_models = [
-                "gemini-3.5-flash-lite",
                 model_name or "gemini-3.5-flash-lite",
-                "gemini-3.6-flash",
+                "gemini-3.5-flash-lite",
+                "gemini-flash-lite-latest",
+                "gemini-3.1-flash-lite",
+                "gemini-3.8-flash",
             ]
             for m_name in candidate_models:
                 try:
@@ -874,9 +900,7 @@ You MUST respond in this exact format:
                         return self._parse_llm_response(response.text)
                 except Exception as e:
                     logger.warning(f"google.genai call failed for model {m_name}: {e}")
-                    if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e) or "503" in str(e):
-                        continue
-                    break
+                    continue
 
             # 2. Try legacy google.generativeai if available
             try:
