@@ -129,7 +129,7 @@ GOOGLE_SHEETS_CREDENTIALS_PATH = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "cr
 
 # Gemini / LLM Configuration
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 
 # Candidate Research Background for Drafting (From PROFILE_INSTRUCTIONS.md)
 CANDIDATE_PROFILE = {
