@@ -54,6 +54,15 @@ python manage.py discover_profs --dry-run --limit 5
 # Discover and stage up to 5 new candidates into SearchProf
 python manage.py discover_profs --limit 5
 
+# Search with extra custom keywords across PhDFinder + EURAXESS
+python manage.py discover_profs --extra-keywords "graph neural network,healthcare ai,rag" --limit 10
+
+# Override search keywords and scan deeper (3 pages per keyword/field)
+python manage.py discover_profs --keywords "explainable ai,llm,time series" --pages 3 --limit 10
+
+# Include non-USA PhD-only calls as well (default targets Master's/RA outside USA)
+python manage.py discover_profs --include-phd-non-usa --limit 10
+
 # Require a direct LinkedIn post link on every staged candidate
 python manage.py discover_profs --linkedin-only --limit 5
 
@@ -234,7 +243,7 @@ git log -n 10 --oneline
 ```
 
 ### `discover_profs` Flags
-`--limit`, `--max-age`, `--fields`, `--pages`, `--country`, `--linkedin-only`, `--urls`, `--urls-file`, `--include-phd-non-usa`, `--worksheet`, `--sheet`, `--credentials`, `--dry-run`, `--draft`
+`--limit`, `--max-age`, `--fields`, `--keywords`, `--extra-keywords`, `--sources`, `--pages`, `--country`, `--linkedin-only`, `--urls`, `--urls-file`, `--include-phd-non-usa`, `--worksheet`, `--sheet`, `--credentials`, `--dry-run`, `--draft`
 
 ### `draft_next` Flags
 `--sheet`, `--worksheet`, `--credentials`, `--limit`, `--start-row` (`--min-row`), `--max-row`, `--country`, `--intake`, `--ignore-preceding-locks`, `--enforce-all-locks`, `--cooldown-days`
