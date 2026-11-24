@@ -216,3 +216,112 @@ class ContactGroupLockingTests(TestCase):
         self.assertEqual(eligible[0].name, "Prof. Jurafsky")
 
 
+class DiscoverProfsCommandTests(TestCase):
+    def test_deobfuscate_emails(self):
+        from core.management.commands.discover_profs import deobfuscate_emails
+
+        txt = "Send CV to minghui[dot]cheng[at]miami[dot]edu or admin@phdfinder.com or jane(at)mit.edu."
+        self.assertEqual(
+            deobfuscate_emails(txt),
+            ["minghui.cheng@miami.edu", "jane@mit.edu"],
+        )
+
+    def test_parse_linkedin_post_html_extracts_jsonld_and_age(self):
+        from core.management.commands.discover_profs import parse_linkedin_post_html
+
+        html = """
+        <html><head>
+        <meta property="og:title" content="Jane Doe | 10 likes | LinkedIn"/>
+        <meta property="og:description" content="Recruiting a fully funded PhD student in Machine Learning for Fall 2027. Email jane.doe@stanford.edu."/>
+        <script type="application/ld+json">
+        {"@type": "SocialMediaPosting", "datePublished": "2026-11-21T10:00:00Z", "author": {"name": "Jane Doe"}}
+        </script>
+        </head><body></body></html>
+        """
+        parsed = parse_linkedin_post_html(html, "https://www.linkedin.com/posts/test", today=date(2026, 11, 24))
+        self.assertEqual(parsed["author_name"], "Jane Doe")
+        self.assertEqual(parsed["post_age_days"], 3)
+        self.assertEqual(parsed["emails"], ["jane.doe@stanford.edu"])
+        self.assertIn("Machine Learning", parsed["post_text"])
+
+    def test_validate_and_format_candidate_skips_duplicates_and_locks(self):
+        from unittest.mock import patch
+        from core.management.commands.discover_profs import Command
+
+        cmd = Command()
+        cand = {
+            "professor_name": "Prof. Jane Doe",
+            "university": "Stanford University",
+            "country": "USA",
+            "department": "Computer Science",
+            "email": "jane@stanford.edu",
+            "post_age": 2,
+            "post_text": "Recruiting PhD students in Machine Learning for Fall 2027.",
+            "linkedin_url": "https://www.linkedin.com/posts/test",
+            "funding": "Fully funded",
+            "intake": "Fall 2027",
+        }
+        with patch.object(cmd, "_verify_recent_publications", return_value=("https://openalex.org/A1", ["2026: Paper"])):
+            # Locked group skips
+            row_locked = cmd._validate_and_format_candidate(
+                cand, set(), set(), {"stan-compscie"}, None, False
+            )
+            self.assertIsNone(row_locked)
+
+            # Duplicate email skips
+            row_dup = cmd._validate_and_format_candidate(
+                cand, set(), {"jane@stanford.edu"}, set(), None, False
+            )
+            self.assertIsNone(row_dup)
+
+            # Clean unlocked candidate succeeds
+            row_ok = cmd._validate_and_format_candidate(
+                cand, set(), set(), set(), None, False
+            )
+            self.assertIsNotNone(row_ok)
+            self.assertEqual(row_ok[9], "Pending")
+            self.assertEqual(row_ok[7], "2")
+
+
+class DraftNextContextTests(TestCase):
+    def test_infer_intake_and_required_subject_and_salutation(self):
+        from core.management.commands.draft_next import Command
+
+        self.assertEqual(
+            Command._infer_intake_from_context("Summer/Fall 2027.", "Start date is Summer or Fall 2027"),
+            "Summer/Fall 2027",
+        )
+        self.assertEqual(
+            Command._infer_intake_from_context("Fully funded PhD, Fall 2027.", ""),
+            "Fall 2027",
+        )
+        self.assertEqual(
+            Command._extract_required_subject('Required subject format: "CAE PhD Application – Your Name"', ""),
+            "CAE PhD Application – Forhad Uddin Ahmed",
+        )
+        self.assertEqual(
+            Command._extract_required_subject("", 'Email with the subject line "Fall 2027 PhD Application – [Your Name]"'),
+            "Fall 2027 PhD Application – Forhad Uddin Ahmed",
+        )
+        self.assertEqual(
+            Command._format_salutation("Asst. Prof. Omar AL-Buraiki"),
+            "Dear Assistant Professor Omar AL-Buraiki,",
+        )
+        self.assertEqual(
+            Command._format_salutation("Prof. Dr. Jan Jürjens"),
+            "Dear Prof. Dr. Jan Jürjens,",
+        )
+        papers = Command._extract_papers_from_notes(
+            "Funding: Full | Verified recent papers: 2026: Agentic AI; 2025: Robust ML | Source: url"
+        )
+        self.assertIn('Title: "Agentic AI" | Year: 2026', papers)
+        stripped = Command._strip_speculative_opening_question(
+            "Dear Dr. X,\n\nI read your post. Do you expect to have funded PhD opportunities for Fall 2027? I have attached my resume.",
+            "Fall 2027",
+        )
+        self.assertNotIn("Do you expect to have", stripped)
+        self.assertIn("discuss my fit for this Fall 2027 opening", stripped)
+
+
+
+
