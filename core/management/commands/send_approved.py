@@ -1,17 +1,25 @@
 import os
-import re
-import sys
-import time
 import logging
+import time
 from datetime import datetime, date, time as dtime, timedelta
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, List, Tuple
 from zoneinfo import ZoneInfo
 
 import gspread
 from django.conf import settings
-from django.core.mail import EmailMultiAlternatives
 from django.core.management.base import BaseCommand
+
+from core.email_utils import (
+    build_outreach_email,
+    collect_sheet_candidates,
+    load_attachments,
+    load_signatures,
+    merge_signature,
+    open_outreach_worksheet,
+    resolve_sheet_columns,
+    strip_signoff,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -229,10 +237,7 @@ class Command(BaseCommand):
             return
 
         # 2. Check Attachments
-        attachments: List[Path] = []
-        if attachments_dir_path.exists() and attachments_dir_path.is_dir():
-            attachments = [f for f in attachments_dir_path.iterdir() if f.is_file() and not f.name.startswith(".")]
-            attachments.sort(key=lambda p: p.name)
+        attachments: List[Path] = load_attachments(attachments_dir_path)
 
         if not attachments:
             self.stdout.write(
@@ -248,15 +253,12 @@ class Command(BaseCommand):
             self.stdout.write("")
 
         # 3. Load Signature
-        signature_text = ""
-        if signature_path.exists():
-            signature_text = signature_path.read_text(encoding="utf-8").strip()
+        signature_text, signature_html = load_signatures(signature_path)
+        if signature_text:
             self.stdout.write(self.style.SUCCESS(f"Loaded text signature from '{signature_path}'."))
 
-        html_sig_path = signature_path.with_suffix(".html")
-        signature_html = ""
-        if html_sig_path.exists():
-            signature_html = html_sig_path.read_text(encoding="utf-8").strip()
+        if signature_html:
+            html_sig_path = signature_path.with_suffix(".html")
             self.stdout.write(self.style.SUCCESS(f"Loaded HTML signature from '{html_sig_path}'.\n"))
         else:
             self.stdout.write("")
@@ -270,34 +272,16 @@ class Command(BaseCommand):
             self.stderr.write(self.style.ERROR(f"Credentials file '{creds_path}' not found."))
             return
 
-        gc = gspread.service_account(filename=creds_path)
-        sh = gc.open_by_url(sheet_url)
-        try:
-            ws = sh.worksheet(ws_name)
-        except Exception:
-            ws = sh.get_worksheet(0)
+        ws = open_outreach_worksheet(creds_path, sheet_url, ws_name)
 
         # 5. Read headers and build flexible index map
         header_values = ws.row_values(1)
-        header_map = {col.strip(): idx for idx, col in enumerate(header_values)}
-
-        def find_col_idx(candidates: List[str]) -> int:
-            for c in candidates:
-                for name, idx in header_map.items():
-                    if name.lower().strip() == c.lower().strip():
-                        return idx
-            return -1
-
-        status_col_idx = find_col_idx(["Pipeline Status", "Status", "Pipeline"])
-        email_col_idx = find_col_idx(["Professor Email", "Email", "Contact Email"])
-        name_col_idx = find_col_idx(["Professor Name", "Name"])
-        draft_col_idx = find_col_idx(["Email Draft", "Draft Email", "LLM Draft Email", "Draft"])
-        subject_col_idx = find_col_idx(["Email Subject", "Subject"])
-        uni_col_idx = find_col_idx(["University", "Institution"])
-        country_col_idx = find_col_idx(["Country", "Location", "Nation"])
-        tz_col_idx = find_col_idx(["Target Timezone", "Timezone", "TZ"])
-        first_contact_idx = find_col_idx(["First Contact Date", "Contact Date"])
-        last_contact_idx = find_col_idx(["Last Contact Date"])
+        col_map = resolve_sheet_columns(header_values)
+        status_col_idx = col_map["status"]
+        email_col_idx = col_map["email"]
+        draft_col_idx = col_map["draft"]
+        first_contact_idx = col_map["first_contact"]
+        last_contact_idx = col_map["last_contact"]
 
         if status_col_idx == -1 or email_col_idx == -1 or draft_col_idx == -1:
             self.stderr.write(
@@ -309,47 +293,14 @@ class Command(BaseCommand):
             return
 
         all_values = ws.get_all_values()
-        data_rows = all_values[1:]  # Exclude header row
 
         # 6. Find Approved Rows (or Needs Review if specifically requested in SearchProf)
-        approved_candidates: List[Dict[str, Any]] = []
-        for idx, row in enumerate(data_rows):
-            sheet_row_num = idx + 2
-            if target_row and sheet_row_num != target_row:
-                continue
-
-            status_val = row[status_col_idx].strip() if len(row) > status_col_idx else ""
-            if target_status == "all" or status_val.lower() == target_status:
-                prof_email = row[email_col_idx].strip() if len(row) > email_col_idx else ""
-                prof_name = row[name_col_idx].strip() if len(row) > name_col_idx else f"Row {sheet_row_num}"
-                subject = row[subject_col_idx].strip() if (subject_col_idx >= 0 and len(row) > subject_col_idx) else ""
-                draft = row[draft_col_idx].strip() if len(row) > draft_col_idx else ""
-                uni = row[uni_col_idx].strip() if (uni_col_idx >= 0 and len(row) > uni_col_idx) else ""
-                country = row[country_col_idx].strip() if (country_col_idx >= 0 and len(row) > country_col_idx) else ""
-                tz_hint = row[tz_col_idx].strip() if (tz_col_idx >= 0 and len(row) > tz_col_idx) else ""
-
-                # Auto-generate subject if missing, or extract from draft if prepended
-                if not subject:
-                    lines = [ln.strip() for ln in draft.splitlines() if ln.strip()]
-                    if lines and lines[0].lower().startswith("subject:"):
-                        subject = lines[0].split(":", 1)[1].strip()
-                        # Clean draft body so "Subject: ..." is not in the email body
-                        draft = "\n\n".join(lines[1:]).strip()
-                    else:
-                        is_usa = country.lower().strip() in ["usa", "us", "united states"]
-                        degree_str = "PhD" if is_usa else "Master's"
-                        subject = f"Exploring {degree_str} Research Opportunities – Forhad Uddin Ahmed"
-
-                approved_candidates.append({
-                    "row_num": sheet_row_num,
-                    "name": prof_name,
-                    "university": uni,
-                    "country": country,
-                    "tz_hint": tz_hint,
-                    "email": prof_email,
-                    "subject": subject,
-                    "draft": draft,
-                })
+        approved_candidates = collect_sheet_candidates(
+            all_values=all_values,
+            col_map=col_map,
+            target_statuses={target_status},
+            target_row=target_row,
+        )
 
         if not approved_candidates:
             self.stdout.write(self.style.NOTICE(f"No professors found with Status == '{options.get('status', 'Approved')}'."))
@@ -452,8 +403,6 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.ERROR(f"Row {row_num} [{name}]: Email draft is blank. Skipping."))
                 continue
 
-            final_body = self._merge_signature(draft, signature_text)
-
             self.stdout.write(self.style.MIGRATE_LABEL(f"\n--- [{i+1}/{len(scheduled_queue)}] Row {row_num}: {name} ({item['university']}, {item['country']}) ---"))
             self.stdout.write(f"To: {to_email}")
             self.stdout.write(f"Subject: {subject}")
@@ -484,25 +433,15 @@ class Command(BaseCommand):
 
             # Real Sending via Django SMTP
             try:
-                msg = EmailMultiAlternatives(
+                msg = build_outreach_email(
                     subject=subject,
-                    body=final_body,
+                    draft=draft,
+                    to_email=to_email,
                     from_email=from_email,
-                    to=[to_email],
+                    signature_text=signature_text,
+                    signature_html=signature_html,
+                    attachments=attachments,
                 )
-
-                if signature_html:
-                    body_without_signoff = self._strip_signoff(draft)
-                    paragraphs = [p.strip().replace("\n", "<br/>") for p in body_without_signoff.split("\n\n") if p.strip()]
-                    html_paragraphs = "".join(
-                        f"<p style='margin: 0 0 16px 0; font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.6; color: #222222;'>{p}</p>"
-                        for p in paragraphs
-                    )
-                    full_html = f"<div dir='ltr'>{html_paragraphs}{signature_html}</div>"
-                    msg.attach_alternative(full_html, "text/html")
-
-                for att in attachments:
-                    msg.attach_file(str(att))
 
                 msg.send(fail_silently=False)
                 self.stdout.write(self.style.SUCCESS(f" Successfully sent email to {to_email}"))
@@ -591,40 +530,7 @@ class Command(BaseCommand):
         return sched_local, sched_bd
 
     def _strip_signoff(self, draft: str) -> str:
-        sign_off_patterns = [
-            r"Sincerely,\s*Forhad Uddin Ahmed",
-            r"Best regards,\s*Forhad Uddin Ahmed",
-            r"Warm regards,\s*Forhad Uddin Ahmed",
-            r"Regards,\s*Forhad Uddin Ahmed",
-            r"Sincerely,",
-            r"Best regards,",
-        ]
-        for pat in sign_off_patterns:
-            match = re.search(pat, draft, re.IGNORECASE)
-            if match:
-                return draft[:match.start()].rstrip()
-        return draft.rstrip()
+        return strip_signoff(draft)
 
     def _merge_signature(self, draft: str, signature: str) -> str:
-        if not signature:
-            return draft
-
-        sign_off_patterns = [
-            r"Sincerely,\s*Forhad Uddin Ahmed",
-            r"Best regards,\s*Forhad Uddin Ahmed",
-            r"Warm regards,\s*Forhad Uddin Ahmed",
-            r"Regards,\s*Forhad Uddin Ahmed",
-            r"Sincerely,",
-            r"Best regards,",
-        ]
-        sig_starts_with_signoff = any(signature.lower().startswith(p) for p in ["sincerely", "best regards", "regards", "warm regards"])
-
-        for pat in sign_off_patterns:
-            match = re.search(pat, draft, re.IGNORECASE)
-            if match:
-                if sig_starts_with_signoff:
-                    return draft[:match.start()].rstrip() + "\n\n" + signature
-                else:
-                    return draft[:match.end()].rstrip() + "\n" + signature
-
-        return draft.rstrip() + "\n\n" + signature
+        return merge_signature(draft, signature)
