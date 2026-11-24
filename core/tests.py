@@ -323,5 +323,165 @@ class DraftNextContextTests(TestCase):
         self.assertIn("discuss my fit for this Fall 2027 opening", stripped)
 
 
+class GmailDraftIntegrationTests(TestCase):
+    def test_build_outreach_email_includes_html_signature_and_attachment(self):
+        import tempfile
+        from pathlib import Path
+        from core.email_utils import build_outreach_email, extract_subject_and_body
+
+        subject, body = extract_subject_and_body(
+            "Subject: Exploring PhD Research – Test\n\nDear Dr. Smith,\n\nI would love to join your lab.\n\nSincerely,\nForhad Uddin Ahmed",
+            "",
+            "USA",
+        )
+        self.assertEqual(subject, "Exploring PhD Research – Test")
+        self.assertTrue(body.startswith("Dear Dr. Smith,"))
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pdf_path = Path(tmpdir) / "Resume.pdf"
+            pdf_path.write_bytes(b"%PDF-1.4\n%fake\n")
+
+            msg = build_outreach_email(
+                subject=subject,
+                draft=body,
+                to_email="smith@stanford.edu",
+                from_email="Forhad <forhad.uddin892@gmail.com>",
+                signature_text="Sincerely,\nForhad Uddin Ahmed\nAI Researcher",
+                signature_html="<div class='gmail_signature'>Sincerely,<br/><b>Forhad Uddin Ahmed</b></div>",
+                attachments=[pdf_path],
+            )
+            self.assertEqual(msg.to, ["smith@stanford.edu"])
+            self.assertEqual(msg.subject, "Exploring PhD Research – Test")
+            self.assertIn("AI Researcher", msg.body)
+            self.assertEqual(len(msg.alternatives), 1)
+            html_content, mime_type = msg.alternatives[0]
+            self.assertEqual(mime_type, "text/html")
+            self.assertIn("gmail_signature", html_content)
+            self.assertEqual(len(msg.attachments), 1)
+
+    def test_validate_oauth_client_file_rejects_service_account_and_accepts_installed(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        from core.gmail_service import GmailAuthError, validate_oauth_client_file
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            sa_file = Path(tmpdir) / "credentials.json"
+            sa_file.write_text(json.dumps({"type": "service_account", "client_email": "x@y.iam.gserviceaccount.com"}))
+            with self.assertRaises(GmailAuthError) as ctx:
+                validate_oauth_client_file(sa_file)
+            self.assertIn("Service Account", str(ctx.exception))
+
+            oauth_file = Path(tmpdir) / "gmail_credentials.json"
+            oauth_file.write_text(json.dumps({"installed": {"client_id": "123", "client_secret": "sec"}}))
+            validate_oauth_client_file(oauth_file)
+
+    def test_create_gmail_draft_encodes_raw_and_dedupes(self):
+        import base64
+        from email import message_from_bytes
+        from email.header import decode_header, make_header
+        from core.email_utils import build_outreach_email
+        from core.gmail_service import create_gmail_draft, list_existing_draft_keys
+
+        msg = build_outreach_email(
+            subject="Exploring PhD Research – Forhad",
+            draft="Dear Prof. Lee,\n\nTesting Gmail draft encoding.",
+            to_email="lee@mit.edu",
+            from_email="forhad.uddin892@gmail.com",
+        )
+
+        mock_service = MagicMock()
+        mock_service.users.return_value.drafts.return_value.create.return_value.execute.return_value = {"id": "draft_123"}
+        resp = create_gmail_draft(mock_service, msg)
+        self.assertEqual(resp["id"], "draft_123")
+
+        call_kwargs = mock_service.users.return_value.drafts.return_value.create.call_args.kwargs
+        raw_b64 = call_kwargs["body"]["message"]["raw"]
+        decoded = message_from_bytes(base64.urlsafe_b64decode(raw_b64.encode("ascii")))
+        self.assertEqual(decoded["To"], "lee@mit.edu")
+        self.assertEqual(str(make_header(decode_header(decoded["Subject"]))), "Exploring PhD Research – Forhad")
+
+        mock_service.users.return_value.drafts.return_value.list.return_value.execute.return_value = {
+            "drafts": [{"id": "d1"}]
+        }
+        mock_service.users.return_value.drafts.return_value.get.return_value.execute.return_value = {
+            "message": {
+                "payload": {
+                    "headers": [
+                        {"name": "To", "value": "Prof. Lee <lee@mit.edu>"},
+                        {"name": "Subject", "value": "Exploring PhD Research – Forhad"},
+                    ]
+                }
+            }
+        }
+        keys = list_existing_draft_keys(mock_service)
+        self.assertIn(("lee@mit.edu", "exploring phd research – forhad"), keys)
+
+    def test_create_gmail_drafts_command_creates_and_skips_duplicates(self):
+        from io import StringIO
+        from unittest.mock import patch
+        from django.core.management import call_command
+
+        mock_ws = MagicMock()
+        mock_ws.row_values.return_value = [
+            "Professor Name",
+            "University",
+            "Country",
+            "Professor Email",
+            "Pipeline Status",
+            "Email Subject",
+            "Email Draft",
+        ]
+        mock_ws.get_all_values.return_value = [
+            mock_ws.row_values.return_value,
+            [
+                "Dr. Alice Smith",
+                "Stanford",
+                "USA",
+                "alice@stanford.edu",
+                "Needs Review",
+                "Exploring PhD Research – Forhad",
+                "Dear Dr. Alice Smith,\n\nI am excited about your work.",
+            ],
+            [
+                "Dr. Bob Jones",
+                "MIT",
+                "USA",
+                "bob@mit.edu",
+                "Needs Review",
+                "Exploring PhD Research – Bob",
+                "Dear Dr. Bob Jones,\n\nI am excited about your robotics work.",
+            ],
+        ]
+
+        mock_service = MagicMock()
+        out = StringIO()
+        with (
+            patch("os.path.exists", return_value=True),
+            patch("core.management.commands.create_gmail_drafts.get_gmail_service", return_value=mock_service),
+            patch("core.management.commands.create_gmail_drafts.get_authenticated_email", return_value="forhad.uddin892@gmail.com"),
+            patch("core.management.commands.create_gmail_drafts.open_outreach_worksheet", return_value=mock_ws),
+            patch(
+                "core.management.commands.create_gmail_drafts.list_existing_draft_keys",
+                return_value={("alice@stanford.edu", "exploring phd research – forhad")},
+            ),
+            patch("core.management.commands.create_gmail_drafts.create_gmail_draft", return_value={"id": "r_bob"}) as mock_create,
+        ):
+            call_command(
+                "create_gmail_drafts",
+                sheet="https://docs.google.com/spreadsheets/d/dummy/edit",
+                status="Needs Review",
+                delay=0,
+                stdout=out,
+            )
+
+        output = out.getvalue()
+        self.assertEqual(mock_create.call_count, 1)
+        self.assertIn("Draft already exists in Gmail for alice@stanford.edu", output)
+        self.assertIn("Saved Gmail draft (id=r_bob) for bob@mit.edu", output)
+        self.assertIn("Created 1 draft(s), skipped 1", output)
+
+
+
 
 
