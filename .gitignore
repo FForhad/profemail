@@ -2,6 +2,8 @@
 .env
 .env.local
 credentials.json
+gmail_credentials.json
+client_secret*.json
 token.json
 
 # Virtual Environment
