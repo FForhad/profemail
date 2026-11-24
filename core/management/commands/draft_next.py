@@ -406,13 +406,27 @@ class Command(BaseCommand):
                 )
                 target_degree = "PhD" if is_usa else "Master's"
                 opt_intake = options.get("intake")
-                target_intake = opt_intake or "Spring/Fall 2027"
 
                 post_text = str(c_record.get(post_text_col, "")).strip() if post_text_col else ""
                 notes_text = str(c_record.get(notes_col, "")).strip() if notes_col else ""
 
                 ws_name_lower = str(options.get("worksheet") or getattr(worksheet, "title", "")).lower()
                 candidate_is_recruitment = bool("searchprof" in ws_name_lower or post_text)
+
+                target_intake = opt_intake or self._infer_intake_from_context(
+                    notes_text, post_text, default="Spring/Fall 2027"
+                )
+                forced_subject = self._extract_required_subject(notes_text, post_text)
+
+                # If Google Scholar / Semantic Scholar returned no papers, append any verified papers from Notes
+                if "No publication data available." in scraped_data or "Recent Publications" not in scraped_data:
+                    notes_papers = self._extract_papers_from_notes(notes_text)
+                    if notes_papers:
+                        scraped_data = (
+                            f"{scraped_data}\n{notes_papers}"
+                            if scraped_data != "No publication data available."
+                            else notes_papers
+                        )
 
                 # 4. LLM Integration
                 mode_desc = "active recruitment call response" if candidate_is_recruitment else "cold outreach"
@@ -429,7 +443,9 @@ class Command(BaseCommand):
                     is_recruitment_call=candidate_is_recruitment,
                 )
 
-                if parsed_subject:
+                if forced_subject:
+                    email_subject = forced_subject
+                elif parsed_subject:
                     email_subject = parsed_subject
                 else:
                     if not research_topic:
@@ -458,7 +474,16 @@ class Command(BaseCommand):
                 if word_count > 110:
                     self.stdout.write(self.style.WARNING(f"Draft has {word_count} words (>110). Auto-shortening to ~100 words..."))
                     current_phase[0] = "Auto-shortening email draft"
-                    draft_body = self._shorten_email_draft(draft_body, max_words=105, is_recruitment_call=candidate_is_recruitment)
+                    draft_body = self._shorten_email_draft(
+                        draft_body,
+                        max_words=105,
+                        is_recruitment_call=candidate_is_recruitment,
+                        target_intake=target_intake,
+                    )
+                    word_count = len(draft_body.split())
+
+                if candidate_is_recruitment:
+                    draft_body = self._strip_speculative_opening_question(draft_body, target_intake)
                     word_count = len(draft_body.split())
 
                 if not col_subject_idx:
@@ -662,16 +687,164 @@ class Command(BaseCommand):
             except Exception as e:
                 logger.warning(f"Error scraping {url}: {e}")
 
-        # If no publications were extracted from Google Scholar, fall back to Semantic Scholar API
+        # If no publications were extracted from Google Scholar, fall back to Semantic Scholar API, then OpenAlex
         has_pubs = any("Recent Publications" in x for x in extracted)
         if not has_pubs and professor_name:
             s2_res = self._fetch_semantic_scholar(professor_name)
             if s2_res:
                 extracted.append(s2_res)
+            else:
+                oa_res = self._fetch_openalex_papers(professor_name)
+                if oa_res:
+                    extracted.append(oa_res)
 
         return "\n".join(extracted) if extracted else "No publication data available."
 
-    def _shorten_email_draft(self, draft: str, max_words: int = 105, is_recruitment_call: bool = False) -> str:
+    def _fetch_openalex_papers(self, name: str) -> str:
+        """Fallback to OpenAlex API to fetch verified 2024-2026 publications."""
+        if not name:
+            return ""
+        clean_name = re.sub(
+            r"^(prof\.|dr\.|assoc\.\s*prof\.|asst\.\s*prof\.|assistant\s*professor|associate\s*professor|professor)\s*",
+            "",
+            name,
+            flags=re.IGNORECASE,
+        ).strip()
+        try:
+            r = requests.get(
+                f"https://api.openalex.org/authors?search={requests.utils.quote(clean_name)}&per-page=3",
+                timeout=6,
+            )
+            if r.status_code != 200:
+                return ""
+            authors = r.json().get("results", [])
+            if not authors:
+                return ""
+            aid = authors[0]["id"].split("/")[-1]
+            rw = requests.get(
+                f"https://api.openalex.org/works?filter=author.id:{aid},publication_year:2024-2026&sort=publication_date:desc&per-page=8",
+                timeout=6,
+            )
+            if rw.status_code != 200:
+                return ""
+            works = rw.json().get("results", [])
+            if not works:
+                return ""
+            lines = [
+                f"Scholar Name (OpenAlex): {authors[0].get('display_name')}",
+                "Recent Publications (sorted newest first):",
+            ]
+            for w in works:
+                title = w.get("title")
+                year = w.get("publication_year")
+                if title:
+                    line = f'- Title: "{title}"'
+                    if year:
+                        line += f" | Year: {year}"
+                    lines.append(line)
+            return "\n".join(lines) if len(lines) > 2 else ""
+        except Exception as e:
+            logger.warning(f"OpenAlex fallback error for '{clean_name}': {e}")
+            return ""
+
+    @staticmethod
+    def _infer_intake_from_context(notes_text: str, post_text: str, default: str = "Spring/Fall 2027") -> str:
+        """Extracts explicit intake semester from Notes or Post Text when available."""
+        combined = f"{notes_text}\n{post_text}"
+        patterns = [
+            (r"\bSummer\s*(?:/|or)\s*Fall\s+2027\b", "Summer/Fall 2027"),
+            (r"\bSpring\s*(?:/|or)\s*Fall\s+2027\b", "Spring/Fall 2027"),
+            (r"\bWinter\s+2027\b", "Winter 2027"),
+            (r"\bFall\s+2027\b", "Fall 2027"),
+            (r"\bSpring\s+2027\b", "Spring 2027"),
+            (r"\bSummer\s+2027\b", "Summer 2027"),
+        ]
+        for pat, label in patterns:
+            if re.search(pat, combined, flags=re.IGNORECASE):
+                return label
+        return default
+
+    @staticmethod
+    def _extract_required_subject(notes_text: str, post_text: str) -> str:
+        """Extracts an explicitly required subject line format from Notes or Post Text."""
+        for src in (notes_text, post_text):
+            if not src:
+                continue
+            m = re.search(
+                r'(?:required\s+subject\s*(?:format|line)?|use\s+the\s+subject\s+line|with\s+the\s+subject\s+line|subject\s+line\s*:?)\s*[:\-]?\s*["\'“]([^"”\'\n]+)["\'”]',
+                src,
+                flags=re.IGNORECASE,
+            )
+            if m:
+                subj = m.group(1).strip()
+                subj = re.sub(r"\[\s*Your\s+Name\s*\]|\bYour\s+Name\b", "Forhad Uddin Ahmed", subj, flags=re.IGNORECASE)
+                return subj
+        return ""
+
+    @staticmethod
+    def _extract_papers_from_notes(notes_text: str) -> str:
+        """Extracts verified recent paper titles recorded in Notes when Scholar scraping fails."""
+        if not notes_text:
+            return ""
+        m = re.search(r"Verified recent papers\s*:\s*([^|]+)", notes_text, flags=re.IGNORECASE)
+        if not m:
+            return ""
+        raw = m.group(1).strip()
+        lines = ["Recent Publications (from Notes):"]
+        for item in re.split(r"\s*;\s*", raw):
+            m_yr = re.match(r"^(202[4-6])\s*:\s*(.+)$", item.strip())
+            if m_yr:
+                lines.append(f'- Title: "{m_yr.group(2).strip()}" | Year: {m_yr.group(1)}')
+            elif item.strip():
+                lines.append(f'- Title: "{item.strip()}"')
+        return "\n".join(lines) if len(lines) > 1 else ""
+
+    @staticmethod
+    def _strip_speculative_opening_question(draft: str, target_intake: str = "Spring/Fall 2027") -> str:
+        """Removes speculative 'do you have openings' questions when replying to an active recruitment post."""
+        if not draft:
+            return draft
+        speculative_re = re.compile(
+            r"(?:^|\s)(?:Do you (?:expect to have|have|anticipate)|Are you (?:currently )?(?:accepting|looking for|recruiting|taking)|Could you let me know if you (?:have|expect))[^?\n]*\?",
+            flags=re.IGNORECASE,
+        )
+        cleaned = speculative_re.sub(
+            f" I would welcome the opportunity to discuss my fit for this {target_intake} opening.",
+            draft,
+        )
+        return re.sub(r"[ \t]{2,}", " ", cleaned).strip()
+
+    @staticmethod
+    def _format_salutation(professor_name: str) -> str:
+        """Builds a clean formal academic salutation without duplicating titles."""
+        clean_name = re.sub(
+            r",\s*(Associate\s*Professor|Assistant\s*Professor|Professor|Prof\.|Dr\.|Ts\.).*$",
+            "",
+            professor_name or "",
+            flags=re.IGNORECASE,
+        ).strip()
+        clean_name = re.sub(r"\s+", " ", clean_name)
+        if not clean_name:
+            return "Dear Professor,"
+        if re.match(r"^(Prof\.|Professor|Dr\.)\s+", clean_name, flags=re.IGNORECASE):
+            return f"Dear {clean_name},"
+        if re.match(r"^Asst\.?\s*Prof\.?\s+", clean_name, flags=re.IGNORECASE):
+            rest = re.sub(r"^Asst\.?\s*Prof\.?\s+", "", clean_name, flags=re.IGNORECASE).strip()
+            return f"Dear Assistant Professor {rest},"
+        if re.match(r"^Assoc\.?\s*Prof\.?\s+", clean_name, flags=re.IGNORECASE):
+            rest = re.sub(r"^Assoc\.?\s*Prof\.?\s+", "", clean_name, flags=re.IGNORECASE).strip()
+            return f"Dear Associate Professor {rest},"
+        if re.match(r"^(Assistant|Associate)\s+Professor\s+", clean_name, flags=re.IGNORECASE):
+            return f"Dear {clean_name},"
+        return f"Dear Professor {clean_name},"
+
+    def _shorten_email_draft(
+        self,
+        draft: str,
+        max_words: int = 105,
+        is_recruitment_call: bool = False,
+        target_intake: str = "Spring/Fall 2027",
+    ) -> str:
         """Auto-shortens email draft via LLM to guarantee word count <= 110 words (~100 words)."""
         api_key = os.getenv("GEMINI_API_KEY") or getattr(settings, "GEMINI_API_KEY", "")
         model_name = os.getenv("GEMINI_MODEL") or getattr(settings, "GEMINI_MODEL", "gemini-3.5-flash-lite")
@@ -681,9 +854,9 @@ class Command(BaseCommand):
                 client = genai.Client(api_key=api_key)
 
                 closing_rule = (
-                    "- Retain confident statement of interest in the advertised graduate opening (Spring/Fall 2027) and request to discuss fit.\n"
+                    f"- Retain confident statement of interest in the advertised graduate opening ({target_intake}) and request to discuss fit.\n"
                     if is_recruitment_call
-                    else "- Retain polite graduate availability inquiry (Spring/Fall 2027).\n"
+                    else f"- Retain polite graduate availability inquiry ({target_intake}).\n"
                 )
 
                 prompt = (
@@ -758,32 +931,22 @@ class Command(BaseCommand):
                 profile_instructions_text = f.read()
 
         # Clean salutation formatting helper
-        clean_name = re.sub(r",\s*(Associate\s*Professor|Assistant\s*Professor|Professor|Prof\.|Dr\.|Ts\.).*$", "", professor_name, flags=re.IGNORECASE).strip()
-        clean_name = re.sub(r"\s+", " ", clean_name)
-        if clean_name.startswith("Prof. ") or clean_name.startswith("Professor "):
-            clean_salutation = f"Dear {clean_name},"
-        elif clean_name.startswith("Assoc. Prof. "):
-            clean_salutation = f"Dear Associate Professor {clean_name[12:].strip()},"
-        elif clean_name.startswith("Associate Professor "):
-            clean_salutation = f"Dear Associate Professor {clean_name[20:].strip()},"
-        elif clean_name.startswith("Dr. "):
-            clean_salutation = f"Dear {clean_name},"
-        else:
-            clean_salutation = f"Dear Professor {clean_name},"
+        clean_salutation = self._format_salutation(professor_name)
 
         if is_recruitment_call:
             recruitment_call_block = f"""
-### ACTIVE RECRUITMENT CALL & LAB POSTING:
+### ACTIVE RECRUITMENT CALL & LAB POSTING (HIGHEST PRIORITY — STRICTLY FOLLOW):
 The target professor has EXPLICITLY posted an active call/announcement seeking prospective {target_degree} / student researchers:
 - Verbatim Post / Announcement: {post_text or 'The professor recently published a public hiring announcement for student researchers.'}
 - Opportunity & Funding Notes: {notes_text or 'Funded graduate research position.'}
 
 SPECIAL RULES FOR ACTIVE RECRUITMENT RESPONSES:
-1. ACKNOWLEDGE THE RECRUITMENT ANNOUNCEMENT: Do NOT ask speculative questions like "Do you expect to have open positions?" or "Do you have PhD opportunities?". The professor has ALREADY confirmed they have openings!
-2. DIRECT CANDIDACY & INTRO: Open by positioning Forhad as an "AI/ML Researcher and Software Engineer" and directly state his strong interest in their active {target_degree} recruitment opening for {target_intake}. (Never describe him as a current Lecturer).
-3. TARGETED ALIGNMENT: Directly connect Forhad's background (Machine Learning, Explainable AI, Time Series Forecasting, AI-driven Software Engineering, predictive modeling) to the specific requirements, tools, or research problems emphasized in their post (and verified recent 2025/2026 publications).
-4. RESPECTFUL OPPORTUNITY REQUEST: Close with a confident, respectful statement requesting an opportunity to discuss fit (e.g., "I would welcome the opportunity to discuss how my research background aligns with your lab's active projects for {target_intake}. I have attached my resume and academic transcript for your review.").
-5. SUBJECT LINE COMPLIANCE: If the post explicitly requests a specific subject line format or tag (e.g., "[Prospective PhD Student]" or "[International] Prospective MASc Student"), generate an [EMAIL_SUBJECT] that strictly adopts that requested format!
+1. FOLLOW POST TEXT & NOTES DETAILS STRICTLY: Respect the exact target intake ({target_intake}), specific sub-areas/tracks (e.g. "Area 3"), required background skills, and any special application instructions stated in Verbatim Post or Notes. Do NOT override the post's intake (e.g., if it says Fall 2027 or Summer/Fall 2027, write that exact intake).
+2. ACKNOWLEDGE THE RECRUITMENT ANNOUNCEMENT (OVERRIDES PROFILE_INSTRUCTIONS.md SECTIONS 8.5 & 13): Because the professor ALREADY posted this open position, NEVER ask whether they have openings, funding availability, or expect to have opportunities (e.g., NEVER write "Do you expect to have...", "Do you have openings...", or "Are you accepting..."). Apply directly to the posted role!
+3. DIRECT CANDIDACY & INTRO: Open by positioning Forhad as an "AI/ML Researcher and Software Engineer" and directly state his strong interest in their active {target_degree} recruitment opening for {target_intake}. (Never describe him as a current Lecturer).
+4. TARGETED ALIGNMENT & RECENT PAPER: Connect Forhad's actual background (Machine Learning, Explainable AI, Time Series Forecasting, AI-driven Software Engineering, predictive modeling) to the specific requirements, tools, or research problems emphasized in their Post Text / Notes, and cite 1–2 verified 2025/2026 publications from SCRAPED SCHOLAR DATA or Notes when available.
+5. RESPECTFUL OPPORTUNITY REQUEST: Close with a confident, respectful statement requesting an opportunity to discuss fit for {target_intake}. Explicitly mention attachments (if the post asks for a research statement or cover letter alongside CV/transcript, mention them; otherwise state that resume and academic transcript are attached).
+6. SUBJECT LINE COMPLIANCE: If Notes or Post Text explicitly specifies a required subject line format or tag (e.g., `"CAE PhD Application – Your Name"`, `"Fall 2027 PhD Application – [Your Name]"`, or `"[Prospective PhD Student]"`), generate an [EMAIL_SUBJECT] that strictly obeys that exact format!
 """
             draft_guidance = (
                 f"- **Active Call Opening**: Begin directly by positioning Forhad as an 'AI/ML Researcher and Software Engineer' and referencing their recent recruitment announcement for {target_intake} (e.g., 'I read with great interest your recent announcement regarding {target_degree} openings in your lab for {target_intake} focusing on [Topic/Area]...'). (DO NOT include conversational pleasantries like 'I hope this email finds you well'. DO NOT state that he is currently a Lecturer).\n"
@@ -1010,11 +1173,7 @@ You MUST respond in this exact format:
         is_recruitment_call: bool = False,
     ) -> Tuple[str, str, int, str, str]:
         """High quality deterministic fallback conforming to the prompt specification."""
-        full_name = professor_name.strip() if professor_name else "Professor"
-        if full_name.lower().startswith("prof") or full_name.lower().startswith("dr"):
-            salutation = f"Dear {full_name},"
-        else:
-            salutation = f"Dear Professor {full_name},"
+        salutation = self._format_salutation(professor_name)
         univ = selected_record.get("University", "your university")
 
         # Prioritize finding a 2026 or 2025 paper from scraped data
