@@ -482,6 +482,54 @@ class GmailDraftIntegrationTests(TestCase):
         self.assertIn("Created 1 draft(s), skipped 1", output)
 
 
+class DiscoverProfsExpansionTests(TestCase):
+    def test_keyword_resolution_and_matching(self):
+        from core.management.commands.discover_profs import Command, text_matches_keywords
+
+        search_kws, rel_kws = Command._resolve_keywords(None, "graph neural networks, agentic ai")
+        self.assertIn("graph neural networks", search_kws)
+        self.assertIn("agentic ai", rel_kws)
+        self.assertIn("explainable ai", rel_kws)
+
+        hits = text_matches_keywords("Research on Graph Neural Networks and XAI for EHR forecasting.", rel_kws)
+        self.assertIn("xai", hits)
+        self.assertIn("ehr", hits)
+        self.assertIn("forecasting", hits)
+        self.assertEqual(text_matches_keywords("Studies on ancient ceramic vessels.", rel_kws), [])
+
+    def test_prioritize_emails_and_infer_name_from_email(self):
+        from core.management.commands.discover_profs import infer_name_from_email, prioritize_emails
+
+        ordered = prioritize_emails(["hr@uni.edu", "mohamed.soliman@uni-paderborn.de", "recruitment@uni.edu"])
+        self.assertEqual(ordered[0], "mohamed.soliman@uni-paderborn.de")
+        self.assertEqual(infer_name_from_email("mohamed.soliman@uni-paderborn.de"), "Prof. Mohamed Soliman")
+        self.assertEqual(infer_name_from_email("recruitment@uni.edu"), "")
+
+    def test_extract_euraxess_key_facts(self):
+        from core.management.commands.discover_profs import extract_euraxess_key_facts
+
+        html = """
+        <html><body><main>
+        <h1>Funded Master Research Assistant in Machine Learning</h1>
+        <p>Posted on: 24 November 2026</p>
+        <div>Organisation/Company TU Wien Department Institute of Logic and Computation
+        Research Field Computer science Positions Master Positions
+        Application Deadline 15 Dec 2026 Country Austria
+        Offer Starting Date 1 Mar 2027
+        Offer Description We seek an MSc student working on Explainable AI and LLMs.
+        Contact Prof. Jane Doe (jane.doe@tuwien.ac.at) or hr@tuwien.ac.at.
+        Work Location Vienna</div>
+        </main></body></html>
+        """
+        parsed = extract_euraxess_key_facts(html, "https://euraxess.ec.europa.eu/jobs/999", today=date(2026, 11, 24))
+        self.assertEqual(parsed["post_age_days"], 0)
+        self.assertEqual(parsed["university"], "TU Wien")
+        self.assertEqual(parsed["country"], "Austria")
+        self.assertEqual(parsed["emails"][0], "jane.doe@tuwien.ac.at")
+        self.assertIn("Jane Doe", parsed["supervisor"])
+
+
+
 
 
 
