@@ -37,6 +37,7 @@ python manage.py test
 # View all options for a management command
 python manage.py discover_profs --help
 python manage.py draft_next --help
+python manage.py create_gmail_drafts --help
 python manage.py send_approved --help
 ```
 
@@ -126,7 +127,30 @@ python manage.py draft_next --sheet "YOUR_SHEET_URL_OR_ID" --worksheet "SearchPr
 
 ---
 
-## 4. Previewing & Dispatching Emails (`send_approved`)
+## 4. Saving Drafts to Gmail App (`create_gmail_drafts`)
+
+Creates identical outreach drafts (same recipient, subject, body, HTML signature from `signature.html`, and attachments from `attachments/`) directly in your **Gmail Drafts** folder via the Gmail API, without sending anything.
+
+> **One-Time OAuth Setup:** Personal `@gmail.com` accounts require an OAuth 2.0 Desktop App JSON saved as `gmail_credentials.json` (distinct from the Google Sheets service account `credentials.json`). First login saves `token.json`.
+
+```bash
+# 1. Authenticate once with your Gmail account and cache token.json
+python manage.py create_gmail_drafts --auth-only
+
+# 2. Preview drafts without touching Gmail
+python manage.py create_gmail_drafts --dry-run --limit 5
+
+# 3. Save 'Needs Review' drafts from Professors List to Gmail Drafts
+python manage.py create_gmail_drafts --limit 5
+
+# 4. Save drafts from SearchProf (or filter by status/country/row)
+python manage.py create_gmail_drafts --worksheet "SearchProf" --status "Needs Review" --limit 5
+python manage.py create_gmail_drafts --worksheet "SearchProf" --status "Approved" --row 40
+```
+
+---
+
+## 5. Previewing & Dispatching Emails (`send_approved`)
 
 Reads `Approved` rows from the Google Sheet, attaches files from `attachments/`, appends `signature.txt`, and sends via Gmail SMTP.
 
@@ -178,7 +202,7 @@ python manage.py send_approved --schedule --attachments-dir "attachments" --sign
 
 ---
 
-## 5. Google Sheet Inspection & Lock Auditing
+## 6. Google Sheet Inspection & Lock Auditing
 
 Quick one-liners using the project's `.venv` and `.env` to inspect live sheet state without modifying rows.
 
@@ -199,7 +223,7 @@ Quick one-liners using the project's `.venv` and `.env` to inspect live sheet st
 
 ---
 
-## 6. Git Status & Quick Flag Summary
+## 7. Git Status & Quick Flag Summary
 
 ```bash
 # Check modified/untracked workspace files
@@ -214,6 +238,9 @@ git log -n 10 --oneline
 
 ### `draft_next` Flags
 `--sheet`, `--worksheet`, `--credentials`, `--limit`, `--start-row` (`--min-row`), `--max-row`, `--country`, `--intake`, `--ignore-preceding-locks`, `--enforce-all-locks`, `--cooldown-days`
+
+### `create_gmail_drafts` Flags
+`--auth-only`, `--dry-run`, `--sheet`, `--worksheet`, `--status`, `--country`, `--row`, `--limit`, `--attachments-dir`, `--signature-file`, `--gmail-credentials`, `--token-file`, `--allow-duplicates`, `--delay`, `--no-browser`
 
 ### `send_approved` Flags
 `--dry-run`, `--schedule`, `--schedule-plan`, `--start-time`, `--gap-minutes`, `--limit`, `--row`, `--delay`, `--attachments-dir`, `--signature-file`, `--sheet`, `--status`, `--worksheet`
