@@ -35,6 +35,7 @@ python manage.py runserver
 python manage.py test
 
 # View all options for a management command
+python manage.py sheet_status --help
 python manage.py discover_profs --help
 python manage.py draft_next --help
 python manage.py create_gmail_drafts --help
@@ -213,6 +214,21 @@ python manage.py send_approved --schedule --attachments-dir "attachments" --sign
 
 ## 6. Google Sheet Inspection & Lock Auditing
 
+### Built-in Sheet Status Command (`sheet_status`)
+Shows row counts, status totals, per-country breakdown, active `Contact Group (Lock)` counts, and how many unlocked professors are ready to draft across `Professors List` and `SearchProf`.
+
+```bash
+# Full status across Professors List and SearchProf (default 9-day cooldown)
+python manage.py sheet_status
+
+# Filter by country or test a custom cooldown window
+python manage.py sheet_status --country USA --cooldown-days 4
+
+# Inspect a single worksheet or output JSON
+python manage.py sheet_status --worksheet "Professors List"
+python manage.py sheet_status --json
+```
+
 Quick one-liners using the project's `.venv` and `.env` to inspect live sheet state without modifying rows.
 
 ### Check `SearchProf` Row Counts & Statuses
@@ -241,6 +257,9 @@ git status
 # View recent project commits
 git log -n 10 --oneline
 ```
+
+### `sheet_status` Flags
+`--sheet`, `--worksheet`, `--credentials`, `--country`, `--cooldown-days`, `--json`
 
 ### `discover_profs` Flags
 `--limit`, `--max-age`, `--fields`, `--keywords`, `--extra-keywords`, `--sources`, `--pages`, `--country`, `--linkedin-only`, `--urls`, `--urls-file`, `--include-phd-non-usa`, `--worksheet`, `--sheet`, `--credentials`, `--dry-run`, `--draft`

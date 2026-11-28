@@ -529,6 +529,99 @@ class DiscoverProfsExpansionTests(TestCase):
         self.assertIn("Jane Doe", parsed["supervisor"])
 
 
+class SheetStatusTests(TestCase):
+    def test_summarize_worksheet_respects_locks_and_cooldown(self):
+        from core.management.commands.sheet_status import summarize_worksheet
+
+        rows = [
+            [
+                "Professor Name",
+                "University",
+                "Country",
+                "Contact Group (Lock)",
+                "Pipeline Status",
+                "First Contact Date",
+            ],
+            ["Prof. A", "CMU", "USA", "CMU-CS", "Applied", "2026-11-24"],
+            ["Prof. B", "CMU", "USA", "CMU-CS", "Pending", ""],
+            ["Prof. C", "MIT", "USA", "MIT-EECS", "Applied", "2026-11-10"],
+            ["Prof. D", "MIT", "USA", "MIT-EECS", "Pending", ""],
+            ["Prof. E", "MIT", "USA", "MIT-EECS", "Pending", ""],
+            ["Prof. F", "TUM", "Germany", "TUM-CS", "Needs Review", ""],
+            ["Prof. G", "TUM", "Germany", "TUM-CS", "Pending", ""],
+        ]
+
+        summary_9d = summarize_worksheet(rows, cooldown_days=9, today=date(2026, 11, 28))
+        self.assertEqual(summary_9d["total_rows"], 7)
+        self.assertEqual(summary_9d["locked_groups"], {"CMU-CS", "TUM-CS"})
+        self.assertEqual(summary_9d["total_ready_groups"], 1)
+        self.assertEqual(summary_9d["total_ready_rows"], 2)
+        self.assertEqual(summary_9d["ready_groups_by_country"], {"USA": 1})
+
+        summary_4d = summarize_worksheet(rows, cooldown_days=4, today=date(2026, 11, 28))
+        self.assertEqual(summary_4d["locked_groups"], {"TUM-CS"})
+        self.assertEqual(summary_4d["total_ready_groups"], 2)
+        self.assertEqual(summary_4d["total_ready_rows"], 3)
+
+    def test_sheet_status_command_outputs_report_and_json(self):
+        import json
+        from io import StringIO
+        from unittest.mock import patch
+        from django.core.management import call_command
+
+        mock_ws_main = MagicMock()
+        mock_ws_main.title = "Professors List"
+        mock_ws_main.get_all_values.return_value = [
+            ["Professor Name", "Country", "Contact Group (Lock)", "Pipeline Status", "First Contact Date"],
+            ["Prof. A", "USA", "MIT-EECS", "Pending", ""],
+            ["Prof. B", "Germany", "TUM-CS", "Applied", "2026-10-01"],
+            ["Prof. C", "Germany", "TUM-CS", "Pending", ""],
+        ]
+
+        mock_ws_search = MagicMock()
+        mock_ws_search.title = "SearchProf"
+        mock_ws_search.get_all_values.return_value = [
+            ["Professor Name", "Country", "Contact Group (Lock)", "Status"],
+            ["Prof. D", "Sweden", "KTH-CS", "Needs Review"],
+        ]
+
+        mock_spreadsheet = MagicMock()
+        mock_spreadsheet.worksheets.return_value = [mock_ws_main, mock_ws_search]
+
+        out = StringIO()
+        with (
+            patch("os.path.exists", return_value=True),
+            patch("core.management.commands.sheet_status._open_spreadsheet", return_value=mock_spreadsheet),
+        ):
+            call_command(
+                "sheet_status",
+                sheet="https://docs.google.com/spreadsheets/d/dummy/edit",
+                stdout=out,
+            )
+
+        text = out.getvalue()
+        self.assertIn("[Professors List] Total rows: 3", text)
+        self.assertIn("Ready to draft: 2 (2 unlocked Pending)", text)
+        self.assertIn("[SearchProf] Total rows: 1", text)
+        self.assertIn("Total unique locked Contact Groups across sheets: 1", text)
+
+        out_json = StringIO()
+        with (
+            patch("os.path.exists", return_value=True),
+            patch("core.management.commands.sheet_status._open_spreadsheet", return_value=mock_spreadsheet),
+        ):
+            call_command(
+                "sheet_status",
+                sheet="https://docs.google.com/spreadsheets/d/dummy/edit",
+                json=True,
+                stdout=out_json,
+            )
+        parsed = json.loads(out_json.getvalue())
+        self.assertEqual(parsed["total_unique_locked_groups"], 1)
+        self.assertEqual(parsed["worksheets"]["Professors List"]["total_ready_groups"], 2)
+
+
+
 
 
 

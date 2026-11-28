@@ -160,6 +160,7 @@ def resolve_sheet_columns(header_values: List[str]) -> Dict[str, int]:
         "timezone": find_col_idx(["Target Timezone", "Timezone", "TZ"]),
         "first_contact": find_col_idx(["First Contact Date", "Contact Date"]),
         "last_contact": find_col_idx(["Last Contact Date"]),
+        "group": find_col_idx(["Contact Group (Lock)", "Contact Group", "Group", "Lock"]),
     }
 
 
